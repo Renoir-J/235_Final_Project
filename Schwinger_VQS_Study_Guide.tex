@@ -1,0 +1,641 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{geometry}
+\usepackage{hyperref}
+\usepackage{enumitem}
+\usepackage{titlesec}
+\usepackage{booktabs}
+\usepackage{xcolor}
+\usepackage{tcolorbox}
+\usepackage{array}
+\usepackage{longtable}
+
+\geometry{margin=2.4cm}
+\hypersetup{colorlinks=true, linkcolor=blue!60!black, citecolor=blue, urlcolor=blue!70!black}
+
+% ---- bra-ket and operator macros (physics.sty not available) ----
+\newcommand{\ket}[1]{\left|#1\right\rangle}
+\newcommand{\bra}[1]{\left\langle#1\right|}
+\newcommand{\braket}[2]{\left\langle#1\middle|#2\right\rangle}
+\newcommand{\ev}[1]{\left\langle#1\right\rangle}
+\newcommand{\dd}{\mathrm{d}}
+\newcommand{\Tr}{\operatorname{Tr}}
+\newcommand{\Real}{\operatorname{Re}}
+\newcommand{\Imag}{\operatorname{Im}}
+\newcommand{\half}{\tfrac{1}{2}}
+
+\newtheorem{definition}{Definition}[section]
+\newtheorem{remark}{Remark}[section]
+\newtheorem{keyidea}{Key idea}[section]
+
+% status tags
+\newcommand{\known}{\textcolor{green!55!black}{\textbf{[course-covered]}}}
+\newcommand{\newx}{\textcolor{red!70!black}{\textbf{[NEW -- focus here]}}}
+\newcommand{\partly}{\textcolor{orange!85!black}{\textbf{[partly new]}}}
+
+\newtcolorbox{checkbox}[1]{colback=blue!4,colframe=blue!45!black,title=#1,fonttitle=\bfseries}
+\newtcolorbox{whybox}{colback=yellow!8,colframe=orange!60!black,title=Why the workflow needs this,fonttitle=\bfseries}
+
+\titleformat{\part}[display]{\bfseries\Large\color{blue!40!black}}{\partname~\thepart}{0.4em}{\Huge}
+
+\title{\bfseries Physics Theory Roadmap \& Study Guide\\[4pt]
+\large Reproducing Quench Dynamics of the Schwinger Model\\ via Variational Quantum Algorithms}
+\author{Companion to: R.~Qu, \emph{Physics 235 Final Project} (Spring 2026)\\
+Source paper: Nagano, Bapat \& Bauer, \emph{Phys. Rev. D} \textbf{108}, 034501 (2023) [arXiv:2302.10933]}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{tcolorbox}[colback=red!5,colframe=red!60!black,title=\textbf{Before you start: a note on your source files}]
+Your proposal is built on \textbf{Nagano--Bapat--Bauer}, ``Quench dynamics of the Schwinger model
+via variational quantum algorithms'' (arXiv:2302.10933). The PDF currently in your project folder
+(\texttt{s41467-025-57580-5.pdf}) is a \emph{different} paper --- Bosse, Childs \emph{et al.},
+``Efficient and practical Hamiltonian simulation from time-dependent product formulas''
+(Nat.\ Commun.\ 2025). That paper is genuinely useful for the \emph{Trotter} part of your project
+(Part IV.B below), but it is not your project's source. \textbf{Action: download arXiv:2302.10933}
+and keep both. This guide is anchored to the workflow your proposal specifies.
+\end{tcolorbox}
+
+\tableofcontents
+\newpage
+
+% ==================================================================
+\part{Orientation --- the whole project on one page}
+% ==================================================================
+
+\section{What you are actually building}
+Your project is a pipeline that takes a continuum quantum field theory (1+1D quantum
+electrodynamics, the \emph{Schwinger model}) and turns it into something a 4-qubit quantum
+computer can simulate, then runs two kinds of real-time dynamics on it and checks them against an
+exact classical answer. Read this pipeline top to bottom --- every later part of the guide expands
+one box.
+
+\begin{center}
+\renewcommand{\arraystretch}{1.35}
+\begin{tabular}{>{\raggedright\arraybackslash}p{0.30\textwidth} >{\raggedright\arraybackslash}p{0.40\textwidth} l}
+\toprule
+\textbf{Stage} & \textbf{What happens} & \textbf{Status} \\
+\midrule
+1. Choose the physics & Schwinger model = 1+1D U(1) gauge theory of one Dirac fermion & \newx \\
+2. Discretize & Kogut--Susskind staggered fermions on $N{=}4$ sites; gauge field on links & \partly \\
+3. Remove the gauge field & Solve Gauss's law in 1+1D $\Rightarrow$ non-local fermionic $H$ & \newx \\
+4. Encode in qubits & Jordan--Wigner $\Rightarrow$ 4-qubit Pauli sum & \known \\
+5. Ground state & VQE: variational minimization of $\ev{H}$; metric $r(E)$ & \known \\
+6. Quench & Suddenly switch on external field $L{=}5$; state is now out of equilibrium & \partly \\
+7a. Dynamics (baseline) & 2nd-order Suzuki--Trotter evolution $e^{-iHt}$ & \known \\
+7b. Dynamics (paper) & McLachlan variational time evolution: $A\dot\theta = C$ & \newx \\
+8. Observe \& validate & $\ev{L(t)},\ \ev{n(t)}$, fidelity $F(t)$ vs.\ exact diagonalization & \known \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{remark}
+The two ingredients your proposal flags as ``beyond course coverage'' are exactly the two
+\newx{} rows that are conceptually heaviest: (i) the \textbf{gauge structure} (stages 1 and 3) and
+(ii) \textbf{McLachlan variational quantum simulation} (stage 7b). This guide spends most of its
+ink there and keeps the \known{} rows short, since you already have them from class.
+\end{remark}
+
+\section{Theory dependency map}
+This is the table to pin above your desk. Each row is a physics theory; the columns tell you what
+it feeds and how much of it is new to you (you reported: solid on QM and quantum computing, new to
+gauge theory).
+
+\begin{center}
+\renewcommand{\arraystretch}{1.3}
+\begin{longtable}{>{\raggedright\arraybackslash}p{0.27\textwidth} >{\raggedright\arraybackslash}p{0.45\textwidth} l}
+\toprule
+\textbf{Core theory} & \textbf{Feeds which stage} & \textbf{For you} \\
+\midrule
+\endhead
+Gauge theory \& local symmetry & Stage 1, 3 (why a gauge field exists at all) & \newx \\
+Schwinger model phenomenology & Stage 1, 8 (confinement, pair production --- what to expect) & \newx \\
+Lattice gauge theory / staggered fermions & Stage 2 (the lattice $H$) & \partly \\
+Gauss's law \& constraint elimination & Stage 3 (removing the gauge dof in 1+1D) & \newx \\
+Jordan--Wigner transformation & Stage 4 (fermions $\to$ qubits) & \known \\
+Variational principle / VQE & Stage 5 (ground state) & \known \\
+Trotter / Suzuki product formulas & Stage 7a (baseline dynamics) & \known \\
+Time-dependent variational principle (McLachlan) & Stage 7b (the paper's method) & \newx \\
+Quantum geometric tensor / Fubini--Study metric & Stage 7b ($A$ matrix) & \newx \\
+Hadamard-test circuits & Stage 7b (measuring $A$, $C$ on hardware) & \partly \\
+Quench / out-of-equilibrium dynamics & Stage 6 (the protocol) & \partly \\
+\bottomrule
+\end{longtable}
+\end{center}
+
+\begin{checkbox}{Prerequisite self-check (you should be comfortable with all of these)}
+\begin{itemize}[leftmargin=1.4em,nosep]
+\item Second quantization: creation/annihilation operators $\chi^\dagger_n,\chi_n$, anticommutators.
+\item Pauli matrices $X,Y,Z$, the spin-$\half$ algebra, tensor products of qubits.
+\item Time-independent perturbation / variational principle $\ev{H}\ge E_0$.
+\item Quantum circuits, parameterized gates $e^{-i\theta P/2}$, expectation-value measurement.
+\item Trotter splitting $e^{-i(A+B)t}\approx (e^{-iA t/r}e^{-iB t/r})^r$.
+\end{itemize}
+If any of these are shaky, patch them \emph{first} --- the new material assumes them fluently.
+\end{checkbox}
+
+% ==================================================================
+\part{Physics foundations: gauge theory and the Schwinger model}
+% ==================================================================
+
+\section{Gauge theory in five minutes (the part that is genuinely new)}\label{sec:gauge}
+
+\begin{whybox}
+You cannot build the Schwinger Hamiltonian without understanding \emph{why} there is an electric
+field $L_n$ living on the links and \emph{why} it is constrained by Gauss's law. Everything in
+stages 1--3 of the pipeline is gauge theory. This is the single highest-leverage concept to learn.
+\end{whybox}
+
+\subsection{Global vs.\ local symmetry}
+A free Dirac fermion has a \emph{global} $U(1)$ symmetry: $\psi \to e^{i\alpha}\psi$ with $\alpha$
+a constant leaves the Lagrangian invariant. Promoting $\alpha \to \alpha(x)$ (a different phase at
+each spacetime point) is a \emph{local} or \emph{gauge} symmetry. The ordinary derivative
+$\partial_\mu \psi$ is no longer covariant because $\partial_\mu(e^{i\alpha(x)}\psi)$ produces an
+extra $i(\partial_\mu\alpha)\psi$ term.
+
+\begin{keyidea}
+To restore invariance you must introduce a new field $A_\mu$ --- the gauge field --- and replace
+the derivative by the \emph{covariant derivative}
+\begin{equation}
+D_\mu = \partial_\mu + i g A_\mu, \qquad A_\mu \to A_\mu - \tfrac{1}{g}\partial_\mu\alpha .
+\label{eq:covderiv}
+\end{equation}
+The gauge field is not optional decoration: \emph{demanding local symmetry forces it to exist}, and
+it is what we call the photon / electric field. This is the logic behind ``the $U(1)$ gauge
+interaction giving rise to the full Schwinger Hamiltonian'' in your proposal.
+\end{keyidea}
+
+The gauge field gets its own kinetic term from the field strength
+$F_{\mu\nu}=\partial_\mu A_\nu-\partial_\nu A_\mu$, giving the QED Lagrangian
+\begin{equation}
+\mathcal{L} = \bar\psi(i\gamma^\mu D_\mu - m)\psi - \tfrac{1}{4}F_{\mu\nu}F^{\mu\nu}.
+\label{eq:qedlagrangian}
+\end{equation}
+
+\subsection{The Schwinger model: 1+1D QED}
+The Schwinger model is Eq.~\eqref{eq:qedlagrangian} in \emph{one} space + one time dimension. Two
+facts make 1+1D special and make this a perfect quantum-simulation testbed:
+
+\begin{enumerate}[leftmargin=1.5em]
+\item \textbf{The gauge field is not dynamical on its own.} In 1+1D there are no transverse
+photon polarizations. The electric field $E$ is fully determined by the charges through Gauss's law
+$\partial_x E = g\,j^0$. This is what lets you \emph{eliminate} the gauge field entirely in stage 3
+--- a luxury unavailable in 3+1D.
+\item \textbf{It is still rich.} Despite being ``simple,'' the model exhibits genuinely
+field-theoretic phenomena:
+\begin{itemize}[nosep]
+\item \emph{Confinement}: the potential between a static charge--anticharge pair grows
+\emph{linearly} with separation (you cannot isolate a single charge).
+\item \emph{Schwinger pair production}: a strong electric field spontaneously creates
+particle--antiparticle pairs --- the dynamical effect your $\ev{n(t)}$ plot will show after the
+quench.
+\item \emph{Chiral condensate} $\ev{\bar\psi\psi}\neq 0$ and a dynamically generated photon mass
+$m_\gamma = g/\sqrt{\pi}$ in the massless case (the original Schwinger result).
+\end{itemize}
+\end{enumerate}
+
+\begin{remark}[What to physically expect in your results]
+When you switch on the external field $L=5$ at the quench, you are driving the vacuum hard. Expect
+$\ev{n(t)}$ (particle density) to \emph{rise} as pairs are produced, and $\ev{L(t)}$ (electric
+field) to oscillate as the produced charges partially screen the field --- a real-time picture of
+the Schwinger mechanism. Knowing this in advance is your sanity check on the numerics.
+\end{remark}
+
+\subsection{The continuum Hamiltonian (temporal gauge)}
+Fixing $A^0=0$ (temporal gauge), the Hamiltonian density has three pieces you will recognize on the
+lattice: a fermion kinetic term, a mass term, and the electric-field energy $\tfrac12 E^2$,
+\begin{equation}
+H = \int \dd x\left[ -i\bar\psi\gamma^1(\partial_1 + igA_1)\psi \;+\; m\,\bar\psi\psi \;+\; \tfrac12 E^2\right],
+\qquad \partial_1 E = g\,\psi^\dagger\psi .
+\label{eq:contH}
+\end{equation}
+The constraint on the right is Gauss's law; it is the seed of stage 3. Hold onto the three-term
+structure --- it survives discretization almost unchanged.
+
+% ==================================================================
+\part{From field theory to a 4-qubit Hamiltonian}
+% ==================================================================
+
+\section{Kogut--Susskind staggered fermions}\label{sec:ks}
+
+\begin{whybox}
+This is stage 2: how Eq.~\eqref{eq:contH} becomes a finite lattice model you can put on qubits. You
+have seen ``staggered fermions'' and ``tight-binding chain'' in class, so this section is
+\partly{} --- the new piece is the \emph{gauge field on links}.
+\end{whybox}
+
+\subsection{The fermion-doubling problem and the staggered cure}
+Naively discretizing a Dirac fermion produces spurious extra particles (``doublers'') --- the
+lattice momentum has unwanted low-energy modes at the Brillouin-zone edge. Kogut and Susskind's fix
+is to put a \emph{single-component} fermion field $\chi_n$ on each site and distribute the Dirac
+spinor's components across alternating sites: even sites carry ``particles,'' odd sites carry
+``antiparticles.'' This is encoded by the \emph{staggered mass term} with its alternating sign
+$(-1)^n$.
+
+\subsection{The lattice Hamiltonian}
+Gauge fields live on the \emph{links} between sites. Define on link $n$ the unitary link operator
+$U_n=e^{iag A_n}$ and its conjugate \emph{electric-field operator} $L_n$ with integer eigenvalues
+$\ell\in\mathbb{Z}$ (compact $U(1)$), satisfying $[\,\theta_n, L_m]=i\delta_{nm}$ where
+$U_n=e^{i\theta_n}$. The Kogut--Susskind Hamiltonian is
+\begin{equation}
+\boxed{\;
+H = -\frac{i}{2a}\sum_{n}\left[\chi^\dagger_n U_n \chi_{n+1} - \text{h.c.}\right]
+\;+\; m\sum_n (-1)^n \chi^\dagger_n\chi_n
+\;+\; \frac{a g^2}{2}\sum_n L_n^2 \; }
+\label{eq:ksH}
+\end{equation}
+The three terms are exactly the lattice images of the three terms in Eq.~\eqref{eq:contH}: hopping
+(kinetic) dressed by the link $U_n$ so it stays gauge invariant, the staggered mass, and the
+electric energy $\propto L_n^2$.
+
+\subsection{Dimensionless parameters --- decoding $ag=1$, $m/g=1$}
+It is standard to rescale $H$ into a dimensionless form $W=\frac{2}{ag^2}H$ governed by two numbers
+\begin{equation}
+x \equiv \frac{1}{(ag)^2}\quad(\text{inverse coupling}),\qquad
+\mu \equiv \frac{2m}{ag^2}\quad(\text{dimensionless mass}),
+\label{eq:dimensionless}
+\end{equation}
+so that $W=x\sum_n[\chi^\dagger_nU_n\chi_{n+1}+\text{h.c.}] + \mu\sum_n(-1)^n\chi^\dagger_n\chi_n + \sum_n L_n^2$.
+Your proposal's primary setting $ag=1,\ m/g=1$ therefore means $x=1$ and a mass comparable to the
+coupling --- the intermediate-coupling regime where confinement physics is most visible.
+(Conventions for the exact numerical prefactor of $\mu$ differ between references; the \emph{ratios}
+$ag$ and $m/g$ are what is physically fixed.)
+
+\begin{checkbox}{Checkpoint --- you understand stage 2 when you can answer:}
+\begin{itemize}[leftmargin=1.4em,nosep]
+\item Why does the hopping term carry a factor $U_n$ rather than being a bare $\chi^\dagger_n\chi_{n+1}$?
+\item What physical quantity does $(-1)^n$ encode?
+\item How do $x$ and $\mu$ relate to $ag$ and $m/g$?
+\end{itemize}
+\end{checkbox}
+
+\section{Gauss's law and eliminating the gauge field}\label{sec:gauss}
+
+\begin{whybox}
+This is stage 3 and the conceptual crux of the project: it is \emph{why} $N=4$ sites need only
+4 qubits instead of also needing qubits for the gauge field. \newx
+\end{whybox}
+
+\subsection{Gauss's law as a constraint}
+On the lattice, Gauss's law (the generator of local gauge transformations) relates the jump in the
+electric field across a site to the charge sitting there:
+\begin{equation}
+L_n - L_{n-1} = Q_n, \qquad Q_n = \chi^\dagger_n\chi_n - \frac{1-(-1)^n}{2}.
+\label{eq:gausslaw}
+\end{equation}
+The subtraction is the staggered ``Dirac sea'': odd sites are filled in the vacuum, so the physical
+charge is measured relative to that. Physical states must satisfy Eq.~\eqref{eq:gausslaw} for
+\emph{every} $n$ --- it is a constraint, not a dynamical equation.
+
+\subsection{Solving the constraint in 1+1D (the key trick)}
+In one spatial dimension Eq.~\eqref{eq:gausslaw} is a simple recursion. With open boundary
+conditions and a background field $L_0=\varepsilon$ fixed at the left edge, telescoping gives
+\begin{equation}
+\boxed{\; L_n = \varepsilon + \sum_{k=1}^{n} Q_k \;}
+\label{eq:Lsolved}
+\end{equation}
+\emph{Every} link field is now an explicit function of the fermion charges. The gauge field is no
+longer an independent degree of freedom --- this is the elimination. The constant $\varepsilon$ is
+the \textbf{external field}: it is your proposal's post-quench parameter $L=5$.
+
+\subsection{The price: a non-local interaction}
+Substituting Eq.~\eqref{eq:Lsolved} into the electric energy $\sum_n L_n^2$ converts a local term
+into a \emph{long-range} charge--charge interaction,
+\begin{equation}
+\sum_n L_n^2 = \sum_n\Bigl(\varepsilon + \sum_{k\le n} Q_k\Bigr)^2
+= \underbrace{\sum_n\varepsilon^2}_{\text{const}}
++ 2\varepsilon\sum_n\!\sum_{k\le n}\!Q_k
++ \sum_{k\le k'} c_{kk'}\,Q_k Q_{k'} .
+\label{eq:nonlocal}
+\end{equation}
+The double sum is a one-dimensional Coulomb potential: its strength grows with the separation
+$|k-k'|$, which is precisely the \textbf{linear confining potential} of Sec.~\ref{sec:gauge}. So the
+gauge field did not disappear --- it reappeared as a confining force between charges, and as a
+\emph{linear coupling to $\varepsilon$} that is exactly how the external field $L=5$ enters the
+dynamics.
+
+\begin{remark}
+Trade-off worth internalizing: eliminating the gauge field saves qubits (4 instead of $4+$links) but
+makes $H$ \emph{non-local} (all-to-all charge interactions). In 1+1D this is a great deal; in higher
+dimensions Gauss's law cannot be solved this cleanly, which is why people keep the gauge field
+explicit there. Knowing this boundary is exactly the ``ingredient beyond course coverage'' your
+proposal names.
+\end{remark}
+
+\section{Jordan--Wigner: fermions to a 4-qubit Pauli sum}\label{sec:jw}
+
+\begin{whybox}
+Stage 4. You have this from class (\known), so the goal here is just to connect it cleanly to the
+output of stage 3 and to the conserved-charge symmetry your ansatz must respect.
+\end{whybox}
+
+The Jordan--Wigner map turns the 1D fermion chain into spins,
+\begin{equation}
+\chi_n = \Bigl(\prod_{l<n}(-Z_l)\Bigr)\sigma^-_n,\qquad
+\chi^\dagger_n\chi_n = \frac{1+Z_n}{2},
+\label{eq:jw}
+\end{equation}
+with $\sigma^\pm=(X\pm iY)/2$. Two consequences you will use directly:
+\begin{itemize}[leftmargin=1.5em]
+\item \textbf{Hopping becomes the tight-binding/XX form.} For nearest neighbors the JW strings
+cancel and $\chi^\dagger_n\chi_{n+1}+\text{h.c.}\to \tfrac12(X_nX_{n+1}+Y_nY_{n+1})$ --- the same
+tight-binding chain from class. (When the link $U_n$ has been eliminated as in Sec.~\ref{sec:gauss},
+this is exactly what you get; otherwise $U_n$ rides along.)
+\item \textbf{Mass and interaction terms become $Z$'s.} $\chi^\dagger_n\chi_n\to(1+Z_n)/2$, so the
+staggered mass and the Coulomb term in Eq.~\eqref{eq:nonlocal} become sums of $Z_n$ and $Z_kZ_{k'}$.
+\end{itemize}
+The result is a 4-qubit Pauli sum $H=\sum_j c_j P_j$. The \emph{total charge} $\sum_n Q_n$
+is conserved, which in spin language is the total magnetization $\sum_n Z_n$: your ansatz should stay
+in one magnetization sector (stage 5).
+
+\begin{checkbox}{Checkpoint --- stages 2--4 cohere when you can:}
+write down, on paper for $N=4$, the chain $Q_1,\dots,Q_4$, use Eq.~\eqref{eq:Lsolved} to get
+$L_1,\dots,L_4$ in terms of the $Q$'s and $\varepsilon$, and identify which Pauli strings appear
+after JW. Reproducing this by hand is your Week-1 ``verify against ED'' deliverable.
+\end{checkbox}
+
+% ==================================================================
+\part{Dynamics: ground state, quench, and two ways to evolve}
+% ==================================================================
+
+\section{Ground state by VQE (brief --- you have this)}\label{sec:vqe}
+The variational principle $\ev{\psi(\theta)|H|\psi(\theta)}\ge E_0$ underwrites VQE: prepare a
+parameterized state $\ket{\psi(\theta)}$ with a hardware-efficient ansatz (layers of $R_y,R_z$
+rotations interleaved with linear-chain CNOTs, per your proposal), and minimize the energy with a
+classical optimizer (Adam, $\|\nabla E\|<10^{-4}$). Respect the conserved magnetization sector so
+you do not optimize into an unphysical charge state. Your success metric is the energy-accuracy ratio
+\begin{equation}
+r(E)=\frac{E_{\text{VQE}}-E_{\max}}{E_{\text{exact}}-E_{\max}}\in(-\infty,1],
+\qquad r(E)=1 \text{ is exact},
+\label{eq:rE}
+\end{equation}
+targeting $r(E)>0.99$ (paper Fig.~5). $E_{\max}$ is the largest eigenvalue, used to normalize so the
+metric is scale-free. Nothing here is new; the only project-specific subtlety is keeping the ansatz
+charge-conserving.
+
+\section{The quench and Trotter baseline}\label{sec:trotter}
+
+\subsection{What a quench is}
+A \emph{quantum quench} means: prepare the system in the ground state of one Hamiltonian, then at
+$t=0$ \emph{suddenly} change a parameter and let it evolve under the new Hamiltonian. Here you prepare
+the ground state (stage 5), then switch on the external field $\varepsilon=L=5$ and evolve
+$\ket{\psi(t)}=e^{-iHt}\ket{\psi_0}$. Because $\ket{\psi_0}$ is \emph{not} an eigenstate of the new
+$H$, observables evolve nontrivially --- this is out-of-equilibrium dynamics, and it is what drives
+Schwinger pair production.
+
+\subsection{Second-order Suzuki--Trotter}
+Split $H=\sum_j H_j$ into easily-exponentiated pieces (hopping, mass, Coulomb). The symmetric
+(second-order) product formula for one step $\delta t$ is
+\begin{equation}
+S_2(\delta t)=\Bigl(\prod_{j} e^{-iH_j \delta t/2}\Bigr)\Bigl(\prod_{j\ \text{reversed}} e^{-iH_j \delta t/2}\Bigr),
+\qquad e^{-iHt}\approx \big[S_2(\delta t)\big]^{r},\ \delta t=t/r,
+\label{eq:suzuki}
+\end{equation}
+with local error $O(\delta t^3)$ per step and global error $O(\delta t^2)$. This is your
+course-technique baseline against which the variational method is compared.
+
+\begin{remark}[Where the folder's Bosse paper fits]
+The paper actually sitting in your folder (time-dependent product formulas) is about making
+Eq.~\eqref{eq:suzuki} \emph{cheaper} when $H$ has very different energy scales --- e.g.\ a ``large''
+term (here the strong external field / Coulomb energy at $L=5$) and a ``small'' term (hopping). If
+you do the stretch goal of varying $L$, that paper is the right reference for an improved Trotter
+baseline. It is a bonus, not a core requirement.
+\end{remark}
+
+\section{McLachlan variational quantum simulation (the heart of the project)}\label{sec:mclachlan}
+
+\begin{whybox}
+Stage 7b. This is the paper's central method and the most important \newx{} topic. The idea: instead
+of a deep Trotter circuit, keep a \emph{fixed shallow ansatz} $\ket{\psi(\theta(t))}$ and move the
+parameters $\theta(t)$ so the state tracks true Schr\"odinger evolution as closely as the ansatz
+allows.
+\end{whybox}
+
+\subsection{The time-dependent variational principle}
+Exact evolution obeys $\partial_t\ket{\psi}=-iH\ket{\psi}$. Within the ansatz manifold, the state can
+only move along directions $\ket{\partial_i\psi}\equiv\partial\ket{\psi}/\partial\theta_i$, so its
+time derivative is forced to be $\ket{\dot\psi}=\sum_i \dot\theta_i\ket{\partial_i\psi}$. In general
+this cannot equal $-iH\ket{\psi}$ exactly. \textbf{McLachlan's variational principle} chooses
+$\dot\theta$ to minimize the residual
+\begin{equation}
+\delta\,\Bigl\| \bigl(\partial_t + iH\bigr)\ket{\psi(\theta)} \Bigr\| = 0 .
+\label{eq:mclachlan}
+\end{equation}
+
+\subsection{Deriving the equations of motion}
+Write the squared norm with $\ket{\dot\psi}=\sum_i\dot\theta_i\ket{\partial_i\psi}$:
+\begin{align}
+\Bigl\|(\partial_t+iH)\ket{\psi}\Bigr\|^2
+&= \sum_{i,j}\dot\theta_i\dot\theta_j\braket{\partial_i\psi}{\partial_j\psi}
++ \ev{\psi|H^2|\psi} \notag\\
+&\quad + i\sum_i\dot\theta_i\Bigl(\ev{\partial_i\psi|H|\psi}-\ev{\psi|H|\partial_i\psi}\Bigr).
+\label{eq:normexpand}
+\end{align}
+Minimizing over each $\dot\theta_i$ (set $\partial/\partial\dot\theta_i=0$) gives a linear system
+\begin{equation}
+\boxed{\ \sum_j A_{ij}\,\dot\theta_j = C_i\ },\qquad
+A_{ij}=\Real\braket{\partial_i\psi}{\partial_j\psi},\qquad
+C_i=\Imag\ev{\partial_i\psi|H|\psi}.
+\label{eq:AthetaC}
+\end{equation}
+These are exactly the $A$ and $C$ of your proposal. Solve for $\dot\theta$ at each timestep and
+integrate (forward Euler or Runge--Kutta) to march $\theta(t)$ forward.
+
+\begin{keyidea}[Geometric meaning of $A$]
+$A_{ij}=\Real\braket{\partial_i\psi}{\partial_j\psi}$ is the real part of the \emph{quantum geometric
+tensor} --- the Fubini--Study metric on the space of quantum states, restricted to the ansatz
+manifold. It is the \emph{same} object as the metric in quantum natural gradient. Equation
+\eqref{eq:AthetaC} is therefore a geometric statement: it \emph{projects} the exact velocity
+$-iH\ket{\psi}$ onto the tangent space of the manifold the ansatz can reach, using $A$ as the metric.
+That is why the method is only as good as the ansatz's expressiveness.
+\end{keyidea}
+
+\subsection{Measuring $A$ and $C$: Hadamard-test circuits}
+For an ansatz built from Pauli rotations $\ket{\psi}=\prod_k e^{-i\theta_k P_k/2}\ket{0}$, the
+derivative inserts a generator: $\ket{\partial_i\psi}$ contains a factor $-\tfrac{i}{2}P_i$. Hence
+both $A_{ij}=\Real\braket{\partial_i\psi}{\partial_j\psi}$ and $C_i=\Imag\ev{\partial_i\psi|H|\psi}$
+reduce to overlaps of the form $\Real/\Imag\,\ev{0|U^\dagger P_i \cdots P_j U|0}$. These are measured with
+the \textbf{Hadamard test}: an ancilla is put in superposition, controls the insertion of the Pauli
+generators $P_i$ (and the Pauli terms of $H$), and the ancilla's $\ev{X}$ gives the real part,
+$\ev{Y}$ the imaginary part:
+\begin{equation}
+\ev{X}_{\text{anc}}=\Real\ev{\psi|V|\psi},\qquad \ev{Y}_{\text{anc}}=\Imag\ev{\psi|V|\psi}.
+\label{eq:hadamard}
+\end{equation}
+You build one auxiliary circuit per matrix element. Debugging these circuits is exactly the Week-4
+task in your timeline.
+
+\begin{remark}[Why bother, if Trotter already works?]
+On a 4-qubit simulator both methods work; the \emph{point} of reproducing the variational method is
+that it keeps the circuit \emph{shallow and fixed-depth} regardless of evolution time, trading circuit
+depth for extra measurements (the $A,C$ estimation). That is the near-term-hardware advantage the
+paper is demonstrating. Your fidelity comparison (next section) is what quantifies the price you pay
+for that shallowness.
+\end{remark}
+
+\section{Observables and validation}\label{sec:obs}
+Three numbers close the loop:
+\begin{itemize}[leftmargin=1.5em]
+\item $\ev{L(t)}$ --- the electric field, computed from Eq.~\eqref{eq:Lsolved} as an expectation of a
+$Z$-Pauli sum. Watch it respond to the quench.
+\item $\ev{n(t)}$ --- particle density, $\propto\sum_n\ev{\chi^\dagger_n\chi_n}$ mapped via
+Eq.~\eqref{eq:jw}; the signature of pair production.
+\item Fidelity $F(t)=|\braket{\psi_{\text{exact}}(t)}{\psi_{\text{VQS}}(t)}|^2$ against the exact
+state from \texttt{scipy.linalg.expm} on the $2^4=16$-dimensional space (exact at $N=4$). This is your
+ground truth (paper Fig.~6).
+\end{itemize}
+
+% ==================================================================
+\part{Your learning roadmap}
+% ==================================================================
+
+\section{An ordered study sequence (mapped to your 5 weeks)}
+Study in \emph{dependency order}, not pipeline order --- foundations first.
+
+\begin{center}
+\renewcommand{\arraystretch}{1.3}
+\begin{longtable}{c >{\raggedright\arraybackslash}p{0.30\textwidth} >{\raggedright\arraybackslash}p{0.44\textwidth}}
+\toprule
+\textbf{Order} & \textbf{Learn this} & \textbf{Goal / deliverable} \\
+\midrule\endhead
+1 & Gauge theory crash course (Sec.~\ref{sec:gauge}) & Explain in one paragraph why local $U(1)$ symmetry forces a gauge field. \\
+2 & Schwinger model phenomenology (Sec.~\ref{sec:gauge}) & Predict qualitatively what $\ev{n(t)},\ev{L(t)}$ should do after the quench. \\
+3 & Kogut--Susskind \& dimensionless params (Sec.~\ref{sec:ks}) & Write Eq.~\eqref{eq:ksH}; convert $ag,m/g$ to $x,\mu$. \\
+4 & Gauss-law elimination (Sec.~\ref{sec:gauss}) & Derive Eq.~\eqref{eq:Lsolved}; see the non-local term appear. \emph{(Week 1)} \\
+5 & Jordan--Wigner assembly (Sec.~\ref{sec:jw}) & Build the explicit $N{=}4$ Pauli sum; verify vs.\ ED. \emph{(Week 1)} \\
+6 & VQE specifics (Sec.~\ref{sec:vqe}) & Reproduce $r(E)>0.99$. \emph{(Week 2)} \\
+7 & Quench + Suzuki--Trotter (Sec.~\ref{sec:trotter}) & Baseline $\ev{L},\ev{n}$ vs.\ time. \emph{(Week 3)} \\
+8 & McLachlan TDVP + QGT (Sec.~\ref{sec:mclachlan}) & Derive Eq.~\eqref{eq:AthetaC} from scratch. \emph{(Week 4)} \\
+9 & Hadamard-test estimation (Sec.~\ref{sec:mclachlan}) & Build $A,C$ circuits; debug. \emph{(Week 4)} \\
+10 & Observables \& fidelity (Sec.~\ref{sec:obs}) & Reproduce Fig.~6; write up. \emph{(Week 5)} \\
+\bottomrule
+\end{longtable}
+\end{center}
+
+\section{Self-check questions (use these as gates)}
+Do not move to the next module until you can answer the current one without notes.
+\begin{enumerate}[leftmargin=1.6em]
+\item Why does demanding \emph{local} (not global) $U(1)$ invariance require introducing $A_\mu$?
+\item In 1+1D, why can the electric field be solved for algebraically instead of being an independent
+quantum variable?
+\item Starting from Gauss's law Eq.~\eqref{eq:gausslaw}, derive $L_n=\varepsilon+\sum_{k\le n}Q_k$.
+Where does the external field $L=5$ enter?
+\item After eliminating the gauge field, $H$ becomes non-local. What physical phenomenon is this
+non-locality (the Coulomb term) responsible for?
+\item Derive $A_{ij}\dot\theta_j=C_i$ from McLachlan's principle. What is the geometric meaning of
+$A$?
+\item Why is the variational (McLachlan) method potentially advantageous over Trotter on near-term
+hardware, even though both reproduce the $N{=}4$ dynamics?
+\item How does a Hadamard test return the real vs.\ imaginary part of a state overlap?
+\end{enumerate}
+
+\section{Curated resources}
+Prioritized; start at the top of each block.
+
+\paragraph{The source paper (read first, in layers).}
+Nagano, Bapat, Bauer, \emph{Phys.\ Rev.\ D} \textbf{108}, 034501 (2023), arXiv:2302.10933. First pass:
+Sec.~2 (Hamiltonian) and the figures you must reproduce (Figs.~5--6). Second pass: Sec.~3 (ansatz and
+variational evolution). Download this --- it is not the PDF currently in your folder.
+
+\paragraph{Gauge theory / Schwinger model (Modules 1--2).}
+\begin{itemize}[nosep,leftmargin=1.4em]
+\item Kogut \& Susskind, \emph{Phys.\ Rev.\ D} \textbf{11}, 395 (1975) --- the original staggered
+lattice formulation (your reference [2]). Read for the Hamiltonian structure, skim the rest.
+\item Banks, Susskind, Kogut, \emph{Phys.\ Rev.\ D} \textbf{13}, 1043 (1976) --- strong-coupling
+analysis (your reference [3]).
+\item For a gentle modern entry: any ``lattice gauge theory for quantum simulation'' review (e.g.\
+Ba\~nuls et al., \emph{Eur.\ Phys.\ J.\ D} 2020, ``Simulating lattice gauge theories within quantum
+technologies'') --- read the Schwinger-model sections.
+\end{itemize}
+
+\paragraph{Variational real-time evolution (Modules 8--9).}
+\begin{itemize}[nosep,leftmargin=1.4em]
+\item Yuan, Endo, Zhao, Li, Benjamin, \emph{Quantum} \textbf{3}, 191 (2019), ``Theory of variational
+quantum simulation'' (your reference [4]) --- the definitive derivation of McLachlan's principle and
+the $A,C$ matrices, including the Hadamard-test circuits. This is your primary technical reference for
+Sec.~\ref{sec:mclachlan}.
+\item Stokes, Izaac, Killoran, Carleo, \emph{Quantum} \textbf{4}, 269 (2020), ``Quantum natural
+gradient'' --- for the quantum geometric tensor / Fubini--Study metric viewpoint of $A$.
+\end{itemize}
+
+\paragraph{VQE and Trotter (Modules 6--7, refreshers).}
+\begin{itemize}[nosep,leftmargin=1.4em]
+\item Peruzzo et al., \emph{Nat.\ Commun.} \textbf{5}, 4213 (2014) --- the original VQE (your
+reference [5]).
+\item PennyLane demos: ``A brief overview of VQE,'' ``Variational quantum time evolution,'' and the
+Hadamard-test demo --- these mirror your \texttt{default.qubit} implementation almost line for line.
+\item Bosse, Childs et al., \emph{Nat.\ Commun.} 2025 (the PDF in your folder) --- only if you pursue
+the varying-$L$ stretch goal.
+\end{itemize}
+
+\appendix
+\newpage
+\section{Key-equation cheat sheet}
+\begin{center}
+\renewcommand{\arraystretch}{1.5}
+\begin{tabular}{>{\raggedright\arraybackslash}p{0.30\textwidth} l}
+\toprule
+\textbf{Quantity} & \textbf{Expression} \\
+\midrule
+Covariant derivative & $D_\mu=\partial_\mu+igA_\mu$ \\
+Kogut--Susskind $H$ & Eq.~\eqref{eq:ksH} \\
+Dimensionless params & $x=1/(ag)^2,\quad \mu=2m/(ag^2)$ \\
+Gauss's law & $L_n-L_{n-1}=Q_n$ \\
+Eliminated field & $L_n=\varepsilon+\sum_{k\le n}Q_k$ \\
+Jordan--Wigner number & $\chi^\dagger_n\chi_n=(1+Z_n)/2$ \\
+Hopping $\to$ spins & $\chi^\dagger_n\chi_{n+1}+\text{h.c.}\to\tfrac12(X_nX_{n+1}+Y_nY_{n+1})$ \\
+VQE metric & $r(E)=(E_{\text{VQE}}-E_{\max})/(E_{\text{exact}}-E_{\max})$ \\
+2nd-order Trotter & $S_2(\delta t)=\prod_j e^{-iH_j\delta t/2}\prod_{j\,\text{rev}}e^{-iH_j\delta t/2}$ \\
+McLachlan EOM & $\sum_j A_{ij}\dot\theta_j=C_i$ \\
+$A$ matrix & $A_{ij}=\Real\braket{\partial_i\psi}{\partial_j\psi}$ \\
+$C$ vector & $C_i=\Imag\ev{\partial_i\psi|H|\psi}$ \\
+Fidelity & $F(t)=|\braket{\psi_{\text{exact}}(t)}{\psi_{\text{VQS}}(t)}|^2$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{Notation conventions}
+\begin{center}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{ll}
+\toprule
+\textbf{Symbol} & \textbf{Meaning} \\
+\midrule
+$\chi_n,\chi^\dagger_n$ & staggered fermion annihilation/creation at site $n$ \\
+$U_n=e^{i\theta_n}$ & gauge link operator on link $n$ \\
+$L_n$ & electric-field operator on link $n$ (integer eigenvalues) \\
+$Q_n$ & staggered charge at site $n$ \\
+$\varepsilon$ / $L$ & external (background) electric field; $=5$ post-quench \\
+$a$ & lattice spacing; $g$ = gauge coupling; $m$ = fermion mass \\
+$x,\mu$ & dimensionless coupling and mass, Eq.~\eqref{eq:dimensionless} \\
+$X,Y,Z$ & single-qubit Pauli operators; $\sigma^\pm=(X\pm iY)/2$ \\
+$\theta$ & variational parameters of the ansatz \\
+$A_{ij},C_i$ & McLachlan matrix and vector, Eq.~\eqref{eq:AthetaC} \\
+$F(t)$ & fidelity against exact diagonalization \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{Acronyms}
+\begin{center}
+\renewcommand{\arraystretch}{1.25}
+\begin{tabular}{ll}
+\toprule
+QED & quantum electrodynamics \\
+KS & Kogut--Susskind (staggered fermions) \\
+JW & Jordan--Wigner \\
+VQE & variational quantum eigensolver \\
+VQD & variational quantum deflation \\
+VQS & variational quantum simulation \\
+TDVP & time-dependent variational principle \\
+QGT & quantum geometric tensor \\
+ED & exact diagonalization \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\end{document}
+                                                        
