@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "module": "module_6",
+  "description": "Projected McLachlan VQS baseline for the q=2 post-quench dynamics.",
+  "source_paper": "Nagano, Bapat, Bauer, arXiv:2302.10933",
+  "config": {
+    "N": 4,
+    "ag": 1.0,
+    "m_over_g": 1.0,
+    "q_final": 2.0,
+    "g": 1.0,
+    "layer_count": 5,
+    "total_time": 5.0,
+    "n_steps": 400,
+    "n_steps_scan": [
+      100,
+      200,
+      400,
+      800
+    ],
+    "regularization": 1e-08,
+    "use_projector": true
+  },
+  "validation": {
+    "final_fidelity": 0.9968548134931543,
+    "min_fidelity": 0.9968548134931543,
+    "charge_drift": 8.21306147976024e-34,
+    "max_residual": 1.52410953413451e-07,
+    "infidelity_order_estimate": 2.1923259758955593
+  },
+  "convergence": {
+    "n_steps_values": [
+      100,
+      200,
+      400,
+      800
+    ],
+    "final_fidelity": [
+      0.9319443246393945,
+      0.9850612748281437,
+      0.9968548134931543,
+      0.999277950237741
+    ],
+    "final_infidelity": [
+      0.06805567536060553,
+      0.014938725171856349,
+      0.0031451865068456986,
+      0.0007220497622589805
+    ],
+    "order_estimate": 2.1923259758955593
+  },
+  "arrays_file": "arrays.npz",
+  "array_keys": [
+    "times",
+    "vqs_electric_field",
+    "vqs_chiral_condensate",
+    "vqs_charge",
+    "exact_electric_field",
+    "exact_chiral_condensate",
+    "exact_charge",
+    "fidelity",
+    "residual",
+    "params",
+    "conv_n_steps",
+    "conv_final_fidelity",
+    "conv_final_infidelity"
+  ]
+}

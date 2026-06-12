@@ -3,4 +3,7 @@ develop_plan
 .claude
 *.md
 __pycache__/
-*.npzcode/test_module_5_trotter.py
+*.npz
+code/test_module_5_trotter.py
+report_plan/
+code/test_module_6_mclachlan_vqs

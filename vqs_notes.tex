@@ -1,0 +1,558 @@
+\documentclass[12pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{geometry}
+\usepackage{hyperref}
+\usepackage{enumitem}
+\usepackage{titlesec}
+\usepackage{booktabs}
+
+\geometry{margin=2.5cm}
+\hypersetup{colorlinks=true, linkcolor=blue, citecolor=blue, urlcolor=blue}
+
+% --- robust bra-ket and operator macros (avoid package version clashes) ---
+\newcommand{\ket}[1]{\lvert #1 \rangle}
+\newcommand{\bra}[1]{\langle #1 \rvert}
+\newcommand{\braket}[2]{\langle #1 \,|\, #2 \rangle}
+\newcommand{\mel}[3]{\langle #1 \,|\, #2 \,|\, #3 \rangle}
+\newcommand{\re}{\operatorname{Re}}
+\newcommand{\im}{\operatorname{Im}}
+\newcommand{\dlam}{\dot{\boldsymbol{\lambda}}}
+\newcommand{\Hexp}{\langle H\rangle}
+
+\newtheorem{definition}{Definition}[section]
+\newtheorem{theorem}{Theorem}[section]
+\newtheorem{proposition}{Proposition}[section]
+\newtheorem{remark}{Remark}[section]
+\newtheorem{example}{Example}[section]
+
+\title{\textbf{Variational Quantum Simulation of Real-Time Dynamics}\\[4pt]
+\large McLachlan's Variational Principle: Equations of Motion, the Global Phase, and the Geometric Projector}
+\author{Theory notes}
+\date{\today}
+
+\begin{document}
+\maketitle
+\tableofcontents
+\bigskip
+
+\noindent\textbf{Scope.} These notes treat \emph{only} the variational quantum simulation (VQS)
+algorithm for real-time evolution, built on McLachlan's variational principle (MVP). We derive
+the equations of motion from first principles, explain the role of the energy-variance term and of
+the global phase, show how the geometric projector $Q_\psi$ emerges, lay out the iteration loop,
+and analyse two minimal models that expose when the algorithm succeeds and fails. The application
+context is the quench dynamics of the lattice Schwinger model (initial state from VQE, evolution
+under a quenched Hamiltonian), but everything below is independent of that specific Hamiltonian.
+
+\newpage
+\part{Variational Principle and Equations of Motion}
+
+\section{Setup: the real-time problem on a variational manifold}\label{sec:setup}
+
+We wish to approximate the solution of the time-dependent Schr\"odinger equation (units $\hbar=1$),
+\begin{equation}
+  \frac{d}{dt}\ket{\Psi(t)} = -iH\ket{\Psi(t)},
+  \label{eq:schrodinger}
+\end{equation}
+without compiling the propagator $e^{-iHt}$ into a circuit whose depth grows with $t$ (the
+Suzuki--Trotter strategy). Instead we restrict the state to a \emph{fixed-depth variational
+manifold}
+\begin{equation}
+  \ket{\psi(\boldsymbol{\lambda})}=U(\boldsymbol{\lambda})\ket{\psi_0},
+  \qquad \boldsymbol{\lambda}=(\lambda_1,\dots,\lambda_{N_p})\in\mathbb{R}^{N_p},
+  \label{eq:ansatz}
+\end{equation}
+and encode the time dependence \emph{entirely} through the parameters, $\boldsymbol{\lambda}=\boldsymbol{\lambda}(t)$.
+The problem of solving \eqref{eq:schrodinger} then reduces to finding a trajectory
+$\boldsymbol{\lambda}(t)$ such that $\ket{\psi(\boldsymbol{\lambda}(t))}$ best tracks the exact state.
+
+\begin{definition}[Tangent vectors]
+At a point $\boldsymbol{\lambda}$ on the manifold, the \emph{parameter derivatives}
+\[
+  \ket{\partial_i\psi}\equiv\frac{\partial}{\partial\lambda_i}\ket{\psi(\boldsymbol{\lambda})}
+\]
+span the tangent space. Because the state depends on time only through $\boldsymbol{\lambda}(t)$,
+the chain rule gives the manifold velocity
+\begin{equation}
+  \ket{\dot\psi}=\sum_{i=1}^{N_p}\dot\lambda_i\ket{\partial_i\psi}.
+  \label{eq:vel}
+\end{equation}
+The unknowns are the \emph{real} velocities $\dot\lambda_i$; the vectors $\ket{\partial_i\psi}$ and
+$\ket{\psi}$ are fixed data at the current $\boldsymbol{\lambda}$.
+\end{definition}
+
+Throughout we assume normalization $\braket{\psi}{\psi}=1$, from which
+\begin{equation}
+  \partial_i\braket{\psi}{\psi}=\braket{\partial_i\psi}{\psi}+\braket{\psi}{\partial_i\psi}=0
+  \;\Longrightarrow\;
+  \re\braket{\psi}{\partial_i\psi}=0,
+  \label{eq:normid}
+\end{equation}
+i.e.\ $\braket{\psi}{\partial_i\psi}$ is purely imaginary. We will use this repeatedly.
+
+\section{McLachlan's variational principle}\label{sec:mvp}
+
+\begin{definition}[McLachlan distance]
+The \emph{McLachlan functional} is the squared $\ell^2$ residual between the variational
+velocity and the exact velocity $-iH\ket{\psi}$,
+\begin{equation}
+  L(\dlam)\equiv\Big\|\,\ket{\dot\psi}+iH\ket{\psi}\,\Big\|^2 .
+  \label{eq:Lfunc}
+\end{equation}
+\end{definition}
+
+The principle is: \emph{at each instant, choose the tangent vector $\ket{\dot\psi}$ (equivalently the
+velocities $\dlam$) that minimizes $L$}. Geometrically this is the orthogonal projection of the exact
+velocity onto the tangent space. The variation is taken with respect to $\dlam$ at \emph{fixed}
+$\boldsymbol{\lambda}$ (hence at fixed $\ket{\psi}$ and $\ket{\partial_i\psi}$).
+
+\section{Expansion of the functional}\label{sec:expand}
+
+Using $\|a+b\|^2=\|a\|^2+2\re\braket{a}{b}+\|b\|^2$ with $a=\ket{\dot\psi}$ and $b=iH\ket{\psi}$,
+\begin{equation}
+  L=\braket{\dot\psi}{\dot\psi}+2\re\!\big(i\mel{\dot\psi}{H}{\psi}\big)+\mel{\psi}{H^2}{\psi}.
+  \label{eq:Lexp1}
+\end{equation}
+The cross term is where an imaginary part appears: since $\re(iz)=-\im(z)$ for any complex $z$,
+\begin{equation}
+  2\re\!\big(i\mel{\dot\psi}{H}{\psi}\big)=-2\im\mel{\dot\psi}{H}{\psi},
+  \label{eq:crossterm}
+\end{equation}
+so that
+\begin{equation}
+  L=\underbrace{\braket{\dot\psi}{\dot\psi}}_{\text{quadratic in }\dlam}
+   \;-\;\underbrace{2\,\im\mel{\dot\psi}{H}{\psi}}_{\text{linear in }\dlam}
+   \;+\;\underbrace{\langle H^2\rangle}_{\text{constant}},
+  \label{eq:Lexp2}
+\end{equation}
+where $\langle H^2\rangle\equiv\mel{\psi}{H^2}{\psi}$.
+
+\begin{remark}[Why $\langle H^2\rangle$ is ``constant'']
+The state $\ket{\psi}$ certainly changes along the trajectory, so $\langle H^2\rangle$ changes
+\emph{in time}. But within a single minimization step it does not depend on the optimization
+variable $\dlam$: the term contains $\ket{\psi}$ only, never $\ket{\dot\psi}$. Hence
+$\partial\langle H^2\rangle/\partial\dot\lambda_k=0$ and it drops out of the stationarity condition.
+This is the same reason the additive constant $c$ in $f(v)=\tfrac12 a v^2-bv+c$ never affects the
+minimizer $v^\ast=b/a$: it shifts the parabola vertically without moving its vertex.
+\end{remark}
+
+Substituting the tangent expansion \eqref{eq:vel} into \eqref{eq:Lexp2}, with $\dot\lambda_i$ real:
+\begin{align}
+  \braket{\dot\psi}{\dot\psi}
+    &=\sum_{i,j}\dot\lambda_i\dot\lambda_j\,\braket{\partial_i\psi}{\partial_j\psi}
+     =\sum_{i,j}\dot\lambda_i\dot\lambda_j\,\re\braket{\partial_i\psi}{\partial_j\psi},
+     \label{eq:quad}\\[2pt]
+  -2\,\im\mel{\dot\psi}{H}{\psi}
+    &=-2\sum_i\dot\lambda_i\,\im\mel{\partial_i\psi}{H}{\psi}.
+     \label{eq:lin}
+\end{align}
+In \eqref{eq:quad} only the real part survives because
+$\im\braket{\partial_i\psi}{\partial_j\psi}$ is antisymmetric in $i\leftrightarrow j$
+(as $\braket{\partial_j\psi}{\partial_i\psi}=\overline{\braket{\partial_i\psi}{\partial_j\psi}}$),
+while $\dot\lambda_i\dot\lambda_j$ is symmetric, so the antisymmetric piece sums to zero.
+
+\section{The linear system}\label{sec:linsys}
+
+Define the symmetric matrix $M$ and the vector $V$,
+\begin{equation}
+  M_{ij}\equiv\re\braket{\partial_i\psi}{\partial_j\psi},
+  \qquad
+  V_i\equiv\im\mel{\partial_i\psi}{H}{\psi}.
+  \label{eq:MVdef}
+\end{equation}
+Then \eqref{eq:Lexp2} is exactly a quadratic form in the velocity,
+\begin{equation}
+  L(\dlam)=\dlam^{\!\top}M\,\dlam-2\,V^{\!\top}\dlam+\langle H^2\rangle.
+  \label{eq:quadform}
+\end{equation}
+Minimizing a (positive) quadratic form is a linear problem: setting
+$\partial L/\partial\dot\lambda_k=0$ gives the \emph{normal equations}
+\begin{equation}
+  \frac{\partial L}{\partial\dot\lambda_k}
+   =2\sum_j M_{kj}\dot\lambda_j-2V_k=0
+   \;\Longrightarrow\;
+   \boxed{\;\sum_j M_{kj}\,\dot\lambda_j=V_k\;}
+  \label{eq:EOM}
+\end{equation}
+or in matrix form $M\dlam=V$, solved at every instant for the velocity $\dlam=M^{-1}V$.
+
+\begin{remark}[Physical reading of $M$ and $V$]
+$M$ is the real part of the quantum geometric tensor (the Fubini--Study metric); it converts
+parameter velocities into state velocities. $V$ is a projected energy gradient pointing along the
+direction the true Schr\"odinger flow demands. The solution $\dlam=M^{-1}V$ is the best
+least-squares image, inside the achievable tangent space, of the exact velocity $-iH\ket{\psi}$.
+\end{remark}
+
+\section{The residual and the role of $\langle H^2\rangle$}\label{sec:residual}
+
+Although $\langle H^2\rangle$ does not affect $\dlam$, it does fix the \emph{value} of the residual.
+Substituting the optimum $\dlam^\ast=M^{-1}V$ into \eqref{eq:quadform}, and using $M^{\!\top}=M$,
+\begin{align}
+  L_{\min}
+  &=(M^{-1}V)^{\!\top}M(M^{-1}V)-2V^{\!\top}(M^{-1}V)+\langle H^2\rangle\nonumber\\
+  &=V^{\!\top}M^{-1}V-2V^{\!\top}M^{-1}V+\langle H^2\rangle\nonumber\\
+  &=\boxed{\;\langle H^2\rangle-V^{\!\top}M^{-1}V\;}.
+  \label{eq:residual}
+\end{align}
+$L_{\min}$ is the squared McLachlan distance: how far the best variational velocity remains from
+the exact one.
+
+\begin{remark}[Practical consequence]
+To determine \emph{which way to step} (the dynamics) one needs only $M$ and $V$; $\langle H^2\rangle$
+is unnecessary. To monitor \emph{how well} the ansatz tracks, one needs $L_{\min}$ and hence
+$\langle H^2\rangle$. On a small classical emulator $\langle H^2\rangle$ is cheap and $L_{\min}(t)$
+is a useful quality diagnostic, complementary to the fidelity against an exact reference.
+\end{remark}
+
+\section{Consistency check: exactly representable dynamics}\label{sec:check}
+
+\begin{proposition}
+If the exact velocity lies in the tangent space, i.e.\ there exist real $\dot\lambda_i$ with
+$\sum_i\dot\lambda_i\ket{\partial_i\psi}=-iH\ket{\psi}$, then \eqref{eq:EOM} reproduces it.
+\end{proposition}
+\begin{proof}
+Insert $\ket{\dot\psi}=-iH\ket{\psi}$ into the left side of \eqref{eq:EOM}:
+\[
+  \sum_j M_{ij}\dot\lambda_j=\re\!\Big\langle\partial_i\psi\,\Big|\,\sum_j\dot\lambda_j\,\partial_j\psi\Big\rangle
+  =\re\mel{\partial_i\psi}{(-iH)}{\psi}.
+\]
+Using $\re(-iz)=\im(z)$,
+\[
+  \re\big(-i\mel{\partial_i\psi}{H}{\psi}\big)=\im\mel{\partial_i\psi}{H}{\psi}=V_i,
+\]
+which matches the right side of \eqref{eq:EOM}. Hence the exact $\dlam$ solves the system. This
+also fixes the sign convention in \eqref{eq:MVdef}: $V_i=\im\mel{\partial_i\psi}{H}{\psi}$ (not its
+negative); the opposite sign would run time backwards.
+\end{proof}
+
+\newpage
+\part{The Global Phase and the Geometric Projector}
+
+\section{The global-phase parameter}\label{sec:phase}
+
+A global phase is physically unobservable: $e^{i\lambda_0}\ket{\psi}$ and $\ket{\psi}$ give identical
+expectation values. Nonetheless the exact velocity $-iH\ket{\psi}$ generically has a component
+\emph{along} $\ket{\psi}$ (a phase rotation) of magnitude $\langle H\rangle$, because
+$\braket{\psi}{-iH\psi}=-i\langle H\rangle\neq0$. We therefore augment the ansatz with an explicit
+phase knob,
+\begin{equation}
+  \ket{\psi(\boldsymbol{\lambda})}=e^{i\lambda_0(t)}\prod_{i=1}^{N_p}U(\lambda_i(t))\ket{0},
+  \qquad
+  \ket{\partial_0\psi}=i\ket{\psi}.
+  \label{eq:phaseansatz}
+\end{equation}
+The extra tangent vector $\ket{\partial_0\psi}=i\ket{\psi}$ points purely along $\ket{\psi}$: it is a
+pure phase direction with zero physical content.
+
+\begin{remark}[Why add a knob that does nothing to the state]
+The physical state lives in projective Hilbert space (rays). Without a dedicated phase direction,
+the minimization \eqref{eq:Lfunc} forces the physical parameters $\lambda_{i\ge1}$ to reproduce
+\emph{both} the perpendicular (physical) and the parallel (phase) parts of $-iH\ket{\psi}$. Since each
+physical parameter generically carries some phase, the fit becomes a compromise that distorts the
+physical motion. The pure-phase knob $\lambda_0$ absorbs the parallel part, freeing the physical
+parameters to track only the genuine motion.
+\end{remark}
+
+\section{Eliminating $\lambda_0$: emergence of $Q_\psi$}\label{sec:project}
+
+Run the index in \eqref{eq:vel}--\eqref{eq:EOM} over $i=0,1,\dots,N_p$ and write
+$\ket{\dot\psi}=i\dot\lambda_0\ket{\psi}+\ket{\chi}$, with the physical part
+$\ket{\chi}=\sum_{i\ge1}\dot\lambda_i\ket{\partial_i\psi}$. Define the phase overlaps
+\begin{equation}
+  b_i\equiv\im\braket{\partial_i\psi}{\psi}\quad(i\ge1),
+  \qquad\text{so}\qquad
+  \braket{\partial_i\psi}{\psi}=ib_i,\;\;\braket{\psi}{\partial_i\psi}=-ib_i,
+  \label{eq:bdef}
+\end{equation}
+the last equalities following from the normalization identity \eqref{eq:normid}. A short computation
+of the two non-constant terms of \eqref{eq:Lexp2} gives
+\begin{align}
+  \braket{\dot\psi}{\dot\psi}
+    &=\dot\lambda_0^2-2\dot\lambda_0\!\sum_i b_i\dot\lambda_i+\braket{\chi}{\chi},\\
+  -2\,\im\mel{\dot\psi}{H}{\psi}
+    &=2\dot\lambda_0\langle H\rangle-2\,\im\mel{\chi}{H}{\psi}.
+\end{align}
+Minimizing over the phase velocity, $\partial L/\partial\dot\lambda_0=0$, yields
+\begin{equation}
+  \dot\lambda_0=\sum_i b_i\dot\lambda_i-\langle H\rangle.
+  \label{eq:lam0}
+\end{equation}
+Substituting \eqref{eq:lam0} back, the three $\dot\lambda_0$-dependent terms collapse to
+$-\dot\lambda_0^2=-\big(\sum_i b_i\dot\lambda_i-\langle H\rangle\big)^2$. Expanding and collecting the
+quadratic and linear pieces in the physical velocities reproduces the linear system $M\dlam=V$, but
+now with \emph{phase-corrected} coefficients,
+\begin{equation}
+  \boxed{\;M_{ij}=\re\braket{\partial_i\psi}{\partial_j\psi}-b_ib_j,
+  \qquad
+  V_i=\im\mel{\partial_i\psi}{H}{\psi}-\langle H\rangle\,b_i.\;}
+  \label{eq:MVproj}
+\end{equation}
+
+\section{Connection to the quantum geometric tensor}\label{sec:qgt}
+
+The corrections in \eqref{eq:MVproj} are exactly the insertion of the projector
+$Q_\psi\equiv I-\ket{\psi}\bra{\psi}$. Using \eqref{eq:bdef},
+\begin{equation}
+  \braket{\partial_i\psi}{\psi}\braket{\psi}{\partial_j\psi}=(ib_i)(-ib_j)=b_ib_j\in\mathbb{R},
+\end{equation}
+so that
+\begin{align}
+  M_{ij}&=\re\!\big(\braket{\partial_i\psi}{\partial_j\psi}-\braket{\partial_i\psi}{\psi}\braket{\psi}{\partial_j\psi}\big)
+        =\re\mel{\partial_i\psi}{Q_\psi}{\partial_j\psi},\\
+  V_i&=\im\mel{\partial_i\psi}{(H-\langle H\rangle)}{\psi}
+      =\im\mel{\partial_i\psi}{Q_\psi H}{\psi},
+  \label{eq:Qform}
+\end{align}
+where in the last line $Q_\psi H\ket{\psi}=(H-\langle H\rangle)\ket{\psi}$.
+
+\begin{remark}[The projected $M$ is the Fubini--Study metric]
+$M_{ij}=\re\mel{\partial_i\psi}{Q_\psi}{\partial_j\psi}$ is the real part of the quantum geometric
+tensor, equal to one quarter of the quantum Fisher information. It is invariant under reparametrizing
+the local phase; the bare $\re\braket{\partial_i\psi}{\partial_j\psi}$ is not. Mechanically,
+\textbf{the projector is the global phase integrated out}: appending $\lambda_0$ and eliminating it
+is identical to inserting $Q_\psi$. The vector $Q_\psi\ket{\partial_i\psi}$ is ``the part of the
+$i$-th tangent direction that actually changes the physical state.''
+\end{remark}
+
+\begin{remark}[Conditioning]
+If a pure-phase direction $i\ket{\psi}$ is reachable by the physical parameters, the bare $M$ keeps
+that nearly-null direction in its column space and is ill-conditioned; the projected $M$ removes it
+($Q_\psi\, i\ket{\psi}=0$), stabilizing the trajectory. In practice $M$ is still frequently
+singular or ill-conditioned and is regularized (Section~\ref{sec:integrate}).
+\end{remark}
+
+\newpage
+\part{Algorithm and Worked Examples}
+
+\section{Evaluating $M$ and $V$}\label{sec:eval}
+
+For a product ansatz of rotation blocks $u(\lambda)=e^{i\lambda\sigma/2}$ (with $\sigma$ a Pauli
+string), each block obeys $\partial u/\partial\lambda=\tfrac{i}{2}u\sigma$, so the tangent vector is
+\begin{equation}
+  \ket{\partial_i\psi}=f_i\,\hat U_i(\boldsymbol{\lambda})\ket{\psi_0},\qquad f_i=\tfrac{i}{2},
+  \label{eq:struct}
+\end{equation}
+where $\hat U_i$ is the ansatz with the $i$-th block's generator $\sigma_i$ inserted. All entries of
+$M$ and $V$ then reduce to overlaps of the form $\braket{0}{\hat U_i^\dagger \hat U_j\,0}$ and
+$\mel{0}{\hat U_i^\dagger\sigma_p U}{0}$, with $H=\sum_p h_p\sigma_p$ its Pauli decomposition.
+
+\begin{itemize}[leftmargin=1.4em]
+  \item \textbf{On hardware:} these overlaps are measured by a Hadamard test with one ancilla
+  prepared in $(\ket{0}+\ket{1})/\sqrt2$. The cost is $\mathcal{O}(N_p^2)$ circuit evaluations per
+  step for $M$.
+  \item \textbf{Classical emulation (small systems):} compute $\ket{\psi}$ and $\ket{\partial_i\psi}$
+  as state vectors directly and form the inner products. The Fubini--Study metric
+  $M_{ij}=\re\mel{\partial_i\psi}{Q_\psi}{\partial_j\psi}$ is returned by standard library routines
+  (e.g.\ \texttt{qml.metric\_tensor}); the projector correction $-\langle H\rangle b_i$ on $V$ must
+  be added by hand, or one simply evaluates $V_i=\im\mel{\partial_i\psi}{(H-\langle H\rangle)}{\psi}$.
+\end{itemize}
+
+\section{Time integration and regularization}\label{sec:integrate}
+
+The equation of motion $M\dlam=V$ is integrated forward in time. With a first-order (Euler) stepper
+and step $\delta t$,
+\begin{equation}
+  \boldsymbol{\lambda}(t+\delta t)=\boldsymbol{\lambda}(t)+\delta t\,M^{-1}V .
+  \label{eq:euler}
+\end{equation}
+Because $M$ is often singular or ill-conditioned, it is regularized before inversion. A simple and
+common choice is a determinant-gated ridge,
+\begin{equation}
+  M\;\longrightarrow\;M+\varepsilon\, I \quad\text{whenever}\quad \det M<\varepsilon,
+  \label{eq:reg}
+\end{equation}
+with e.g.\ $\varepsilon=10^{-7}$. The regularization parameter is a numerical knob (it trades
+stability against bias), not a physical input.
+
+\begin{remark}[Error control]
+Euler is first order, so the time-discretization error accumulates linearly in $\delta t$; decreasing
+$\delta t$ (or using a higher-order Runge--Kutta integrator) systematically improves fidelity.
+\end{remark}
+
+\section{The algorithm}\label{sec:algorithm}
+
+\noindent\fbox{\parbox{0.95\linewidth}{
+\textbf{Variational quantum simulation of a quench.}
+\begin{enumerate}[leftmargin=1.6em,itemsep=2pt]
+  \item \textbf{Initial state (VQE).} Obtain $\boldsymbol{\lambda}_{\mathrm{opt}}$ by minimizing
+  $\mel{\psi(\boldsymbol{\lambda})}{H_{\mathrm{init}}}{\psi(\boldsymbol{\lambda})}$ for the
+  pre-quench Hamiltonian. Set $\boldsymbol{\lambda}(0)=\boldsymbol{\lambda}_{\mathrm{opt}}$ and
+  switch on the quenched Hamiltonian $H$.
+  \item \textbf{Per step ($t\to t+\delta t$):}
+  \begin{enumerate}[label=(\alph*),leftmargin=1.6em]
+    \item Evaluate $M(\boldsymbol{\lambda})$ and $V(\boldsymbol{\lambda})$ via
+          \eqref{eq:Qform}.
+    \item Regularize $M$ by \eqref{eq:reg} and solve $\dlam=M^{-1}V$.
+    \item Euler update \eqref{eq:euler}: $\boldsymbol{\lambda}\!\mathrel{+}=\delta t\,\dlam$.
+    \item Measure observables $\langle O\rangle(t)$ in the updated state.
+  \end{enumerate}
+  \item \textbf{Validate} against an exact reference: fidelity
+  $F(t)=|\braket{\Psi_{\mathrm{exact}}(t)}{\psi(\boldsymbol{\lambda}(t))}|^2$, conservation of any
+  symmetry charge, and the residual $L_{\min}(t)$ of \eqref{eq:residual}.
+\end{enumerate}}}
+
+\medskip
+Using the \emph{same} ansatz for VQE and VQS lets the evolution start from
+$\boldsymbol{\lambda}_{\mathrm{opt}}$ at constant depth throughout, in contrast to Trotter circuits
+whose depth grows with $t$.
+
+\section{Minimal model I: naive freezing vs.\ projected tracking}\label{sec:ex1}
+
+Consider a single qubit with a one-parameter ansatz that rotates the azimuthal angle at a
+\emph{fixed} polar angle $\theta_\ast$,
+\begin{equation}
+  \ket{\psi(\phi)}=e^{-i\phi Z/2}\big(\cos\tfrac{\theta_\ast}{2}\ket{0}+\sin\tfrac{\theta_\ast}{2}\ket{1}\big),
+  \qquad H=\tfrac{\omega}{2}X .
+\end{equation}
+The driving force $X$ rotates the Bloch vector about $\hat x$, changing the polar angle, which the
+ansatz \emph{cannot} follow---an instructive imperfect-ansatz situation. A direct computation gives
+\[
+  M^{\text{bare}}=\tfrac14,\qquad
+  b_\phi=\tfrac12\cos\theta_\ast,\qquad
+  M^{\text{proj}}=\tfrac14\sin^2\theta_\ast,
+\]
+and, crucially,
+\[
+  \mel{\partial_\phi\psi}{H}{\psi}=-\tfrac{\omega}{4}\sin\theta_\ast\sin\phi\;\in\mathbb{R}
+  \;\Longrightarrow\;
+  V^{\text{bare}}=\im\mel{\partial_\phi\psi}{H}{\psi}=0 .
+\]
+\textbf{Bare (no phase handling):} $\dot\phi=V^{\text{bare}}/M^{\text{bare}}=0$ --- the state freezes
+and fails to move at all. The physical force is hidden: the bare matrix element came out purely real
+because it is dominated by the phase overlap, and the genuine signal lives in the imaginary part only
+\emph{after} the phase is removed.
+
+\textbf{Projected (with $\lambda_0$):} $V^{\text{proj}}=V^{\text{bare}}-\langle H\rangle b_\phi
+=-\tfrac{\omega}{4}\sin\theta_\ast\cos\theta_\ast\cos\phi$, hence
+\begin{equation}
+  \dot\phi=\frac{V^{\text{proj}}}{M^{\text{proj}}}=-\omega\cot\theta_\ast\cos\phi .
+  \label{eq:ex1result}
+\end{equation}
+This is precisely the orthogonal projection of the exact Bloch precession
+$\dot{\mathbf r}=\omega\,\hat x\times\mathbf r$ onto the achievable azimuthal direction. The two
+agree to machine precision in numerics (Table~\ref{tab:ex1}).
+
+\begin{table}[h]
+\centering
+\renewcommand{\arraystretch}{1.25}
+\begin{tabular}{ccccc}
+\toprule
+$\phi$ & $\dot\phi$ (bare) & $\dot\phi$ (projected) & exact best-fit & $b_\phi$ \\
+\midrule
+$0.0$ & $\approx 0$ & $-1.000$ & $-1.000$ & $0.354$ \\
+$1.0$ & $\approx 0$ & $-0.540$ & $-0.540$ & $0.354$ \\
+$2.0$ & $\approx 0$ & $+0.416$ & $+0.416$ & $0.354$ \\
+\bottomrule
+\end{tabular}
+\caption{Single-qubit model with $\theta_\ast=\pi/4$, $\omega=1$. The bare update freezes
+($\dot\phi=0$); the projected update matches the exact geometric best-fit \eqref{eq:ex1result}.}
+\label{tab:ex1}
+\end{table}
+
+\begin{remark}[Moral]
+The phase knob does not add reach; it tells the algorithm not to score phase as error. The very fact
+that the physical parameter carries phase ($b_\phi\neq0$) is what fools the bare fit---so quotienting
+the phase out is mandatory, not optional.
+\end{remark}
+
+\section{Minimal model II: the eigenstate limit}\label{sec:ex2}
+
+The cleanest test is an eigenstate $H\ket{\psi}=E\ket{\psi}$. Exact evolution is
+$e^{-iEt}\ket{\psi}$: the ray is stationary and only the global phase advances, which should sit
+entirely in $\lambda_0$.
+
+\textbf{Projected.} Since $(H-\langle H\rangle)\ket{\psi}=(H-E)\ket{\psi}=0$, equation
+\eqref{eq:Qform} gives $V_i\equiv0$, so every physical velocity vanishes; the phase equation
+\eqref{eq:lam0} gives $\dot\lambda_0=-E$. The physical state is frozen and the phase ticks at the
+eigenvalue---exactly correct, independent of the ansatz.
+
+\textbf{Bare.} Here $V_i^{\text{bare}}=\im\mel{\partial_i\psi}{H}{\psi}=E\,b_i$, generally nonzero:
+the bare method tries to move physical parameters to reproduce the unobservable phase rotation. Whether
+this corrupts observables depends on the ansatz:
+\begin{itemize}[leftmargin=1.4em]
+  \item If the ansatz happens to contain a free pure-phase direction, that knob absorbs the spurious
+  velocity and the physical parameters stay frozen. A two-qubit example with $H=\tfrac{\omega}{2}(Z_0+Z_1)$,
+  reference $\ket{00}$, and a $Z_0+Z_1$ rotation acting as the phase knob gives bare velocities
+  $(\dot\theta,\dot\phi)=(0,1)$ and unit fidelity for all $t$: the physical direction $\theta$ is
+  protected. This vindicates the intuition that a parameter able to play the role of $\lambda_0$
+  shields the physical sector.
+  \item If the ansatz contains no free phase direction (as in Model~I), the spurious phase-chasing
+  contaminates the physical parameters and the trajectory drifts or freezes incorrectly.
+\end{itemize}
+
+\begin{remark}[What $\lambda_0$ guarantees]
+A real-parameterized ansatz generically does \emph{not} span $i\ket{\psi}$ at every point of the
+trajectory. Adding $\lambda_0$ (equivalently inserting $Q_\psi$) provides a dedicated phase outlet at
+every step, making the physical parameters provably immune to phase contamination---no reliance on the
+ansatz being accidentally favourable.
+\end{remark}
+
+\newpage
+\appendix
+\section{Summary of key results}
+
+\begin{center}
+\renewcommand{\arraystretch}{1.5}
+\begin{tabular}{lll}
+\toprule
+\textbf{Quantity} & \textbf{Symbol} & \textbf{Expression}\\
+\midrule
+McLachlan functional & $L$ & $\big\|\,\ket{\dot\psi}+iH\ket{\psi}\,\big\|^2$\\
+Equation of motion & $M\dlam=V$ & normal equations of $L$\\
+Metric (bare) & $M_{ij}$ & $\re\braket{\partial_i\psi}{\partial_j\psi}$\\
+Force (bare) & $V_i$ & $\im\mel{\partial_i\psi}{H}{\psi}$\\
+Metric (projected) & $M_{ij}$ & $\re\mel{\partial_i\psi}{Q_\psi}{\partial_j\psi}$\\
+Force (projected) & $V_i$ & $\im\mel{\partial_i\psi}{(H-\langle H\rangle)}{\psi}$\\
+Phase velocity & $\dot\lambda_0$ & $\sum_i b_i\dot\lambda_i-\langle H\rangle$\\
+Phase overlap & $b_i$ & $\im\braket{\partial_i\psi}{\psi}$\\
+Residual & $L_{\min}$ & $\langle H^2\rangle-V^{\!\top}M^{-1}V$\\
+Euler update & $\boldsymbol{\lambda}(t{+}\delta t)$ & $\boldsymbol{\lambda}(t)+\delta t\,M^{-1}V$\\
+Regularization & $M$ & $M+\varepsilon I$ if $\det M<\varepsilon$\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section*{Logical structure of the derivation}
+\addcontentsline{toc}{section}{Logical structure of the derivation}
+\begin{center}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{rl}
+\toprule
+Step & Content\\
+\midrule
+1 & Restrict dynamics to manifold $\ket{\psi(\boldsymbol{\lambda})}$; velocity $=\sum\dot\lambda_i\ket{\partial_i\psi}$ \\
+2 & Define McLachlan distance $\|\ket{\dot\psi}+iH\ket{\psi}\|^2$ \\
+3 & Expand $\Rightarrow$ quadratic form $\dlam^{\!\top}M\dlam-2V^{\!\top}\dlam+\langle H^2\rangle$ \\
+4 & Minimize over $\dlam$ $\Rightarrow$ normal equations $M\dlam=V$ \\
+5 & Add global phase $\lambda_0$; eliminate it $\Rightarrow$ insert $Q_\psi$ \\
+6 & Integrate $M\dlam=V$ in time with regularization \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{Notation conventions}
+
+\begin{center}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{ll}
+\toprule
+\textbf{Symbol} & \textbf{Meaning}\\
+\midrule
+$\ket{\psi(\boldsymbol{\lambda})}$ & variational (ansatz) state\\
+$\boldsymbol{\lambda},\dlam$ & real parameters and their time derivatives (velocities)\\
+$\lambda_0$ & global-phase parameter; $\ket{\partial_0\psi}=i\ket{\psi}$\\
+$\ket{\partial_i\psi}$ & tangent vector $\partial\ket{\psi}/\partial\lambda_i$\\
+$H$ & Hamiltonian (post-quench); $H=\sum_p h_p\sigma_p$ in Pauli form\\
+$\langle O\rangle$ & expectation $\mel{\psi}{O}{\psi}$; in particular $\langle H\rangle,\langle H^2\rangle$\\
+$M_{ij}$ & Fubini--Study metric (real part of quantum geometric tensor)\\
+$V_i$ & projected energy-gradient vector\\
+$Q_\psi$ & projector $I-\ket{\psi}\bra{\psi}$\\
+$b_i$ & phase overlap $\im\braket{\partial_i\psi}{\psi}=\tfrac12\langle G_i\rangle$\\
+$\delta t,\;\varepsilon$ & integration step; regularization parameter\\
+$F(t)$ & fidelity to the exact reference state\\
+$L_{\min}$ & minimal McLachlan distance squared (residual)\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\end{document}
