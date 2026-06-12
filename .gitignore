@@ -3,3 +3,4 @@ develop_plan
 .claude
 *.md
 __pycache__/
+*.npz

@@ -1,0 +1,2 @@
+# Keep Jupyter notebooks normalized to LF line endings on Windows
+*.ipynb text eol=lf

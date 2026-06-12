@@ -16,8 +16,7 @@ ansatz layer count. Keep those two symbols separate.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-import argparse
+from dataclasses import asdict, dataclass
 from typing import Any, Callable, Iterable
 
 import numpy as onp
@@ -34,6 +33,32 @@ PAULI_MATS = {
     "Y": onp.array([[0.0, -1.0j], [1.0j, 0.0]], dtype=complex),
     "Z": onp.array([[1.0, 0.0], [0.0, -1.0]], dtype=complex),
 }
+
+__all__ = [
+    "ExactSpectrum",
+    "Module4Config",
+    "Module4WorkflowResult",
+    "PauliTerm",
+    "QuenchSetup",
+    "SchwingerHamiltonian",
+    "VQEResult",
+    "build_schwinger_hamiltonian",
+    "commutator_norm",
+    "compute_observables",
+    "exact_ground_state",
+    "exact_time_evolution",
+    "hamiltonian_matrix",
+    "hva_state",
+    "make_vqe_initial_guesses",
+    "module4_acceptance_passed",
+    "prepare_quench_state",
+    "run_module4_from_config",
+    "run_module4_workflow",
+    "run_vqe",
+    "state_fidelity",
+    "total_charge_matrix",
+    "validate_module4_setup",
+]
 
 
 @dataclass(frozen=True)
@@ -100,6 +125,58 @@ class QuenchSetup:
     initial_observables_q2: dict[str, float]
 
 
+@dataclass(frozen=True)
+class Module4Config:
+    """Stable public configuration passed in by main_skeleton.ipynb.
+
+    This class intentionally has no project-specific defaults. Concrete
+    parameter choices belong in the main notebook, not in this algorithm module.
+    """
+
+    N: int
+    ag: float
+    m_over_g: float
+    q_initial: float
+    q_final: float
+    g: float
+    layer_count: int
+    n_restarts: int
+    seed: int
+    learning_rate: float
+    max_steps: int
+    grad_tol: float
+    stall_window: int
+    stall_tol: float
+    use_lbfgs_polish: bool
+
+    def to_dict(self) -> dict[str, float | int | bool]:
+        return asdict(self)
+
+    def validate(self) -> None:
+        if self.N < 2:
+            raise ValueError("N must be at least 2.")
+        if self.ag <= 0:
+            raise ValueError("ag must be positive.")
+        if self.layer_count < 1:
+            raise ValueError("layer_count must be at least 1.")
+        if self.n_restarts < 1 or self.n_restarts > 20:
+            raise ValueError("n_restarts must be between 1 and 20.")
+        if self.max_steps < 1:
+            raise ValueError("max_steps must be at least 1.")
+        if self.learning_rate <= 0:
+            raise ValueError("learning_rate must be positive.")
+
+
+@dataclass
+class Module4WorkflowResult:
+    """Top-level result passed from Module 4 to later workflow stages."""
+
+    config: Module4Config
+    vqe: VQEResult
+    quench: QuenchSetup
+    validation: dict[str, float | bool]
+
+
 def n_hva_params(layer_count: int, N: int) -> int:
     """Number of flattened HVA parameters."""
 
@@ -142,11 +219,11 @@ def _finalize_terms(
 
 
 def build_schwinger_hamiltonian(
-    N: int = 4,
-    ag: float = 1.0,
-    m_over_g: float = 1.0,
-    external_field: float = 0.0,
-    g: float = 1.0,
+    N: int,
+    ag: float,
+    m_over_g: float,
+    external_field: float,
+    g: float,
 ) -> SchwingerHamiltonian:
     """Build the spin Hamiltonian from Eq. (8) of arXiv:2302.10933.
 
@@ -366,9 +443,9 @@ def hva_state(theta: NDArray, layer_count: int, N: int) -> NDArray:
 
 
 def make_vqe_initial_guesses(
-    layer_count: int = 5,
-    N: int = 4,
-    seed: int = 1234,
+    layer_count: int,
+    N: int,
+    seed: int,
 ) -> list[NDArray]:
     """Generate 20 deterministic VQE initial guesses."""
 
@@ -476,15 +553,15 @@ def _lbfgs_polish(
 
 def run_vqe(
     H_initial: SchwingerHamiltonian,
-    layer_count: int = 5,
-    n_restarts: int = 20,
-    seed: int = 1234,
-    learning_rate: float = 0.05,
-    max_steps: int = 3000,
-    grad_tol: float = 1e-4,
-    stall_window: int = 100,
-    stall_tol: float = 1e-9,
-    use_lbfgs_polish: bool = False,
+    layer_count: int,
+    n_restarts: int,
+    seed: int,
+    learning_rate: float,
+    max_steps: int,
+    grad_tol: float,
+    stall_window: int,
+    stall_tol: float,
+    use_lbfgs_polish: bool,
 ) -> VQEResult:
     """Run VQE for H(q=0) with the paper HVA."""
 
@@ -589,10 +666,10 @@ def commutator_norm(left: NDArray, right: NDArray) -> float:
 
 def compute_observables(
     state: NDArray,
-    N: int = 4,
-    ag: float = 1.0,
-    external_field: float = 2.0,
-    g: float = 1.0,
+    N: int,
+    ag: float,
+    external_field: float,
+    g: float,
 ) -> dict[str, float]:
     """Compute paper observables E(t), Sigma(t), and Q(t)."""
 
@@ -637,13 +714,13 @@ def exact_time_evolution(
 
 def prepare_quench_state(
     lambda_opt: NDArray,
-    layer_count: int = 5,
-    N: int = 4,
-    ag: float = 1.0,
-    m_over_g: float = 1.0,
-    q_initial: float = 0.0,
-    q_final: float = 2.0,
-    g: float = 1.0,
+    layer_count: int,
+    N: int,
+    ag: float,
+    m_over_g: float,
+    q_initial: float,
+    q_final: float,
+    g: float,
 ) -> QuenchSetup:
     """Build the q=0 initial state and q=2 post-quench reference objects."""
 
@@ -716,94 +793,105 @@ def validate_module4_setup(vqe_result: VQEResult, quench: QuenchSetup) -> dict[s
     }
 
 
-def run_module4_workflow(
-    N: int = 4,
-    ag: float = 1.0,
-    m_over_g: float = 1.0,
-    q_initial: float = 0.0,
-    q_final: float = 2.0,
-    layer_count: int = 5,
-    n_restarts: int = 20,
-    seed: int = 1234,
-    learning_rate: float = 0.05,
-    max_steps: int = 3000,
-    use_lbfgs_polish: bool = False,
-) -> tuple[VQEResult, QuenchSetup, dict[str, float | bool]]:
-    """Run the complete Module 4 VQE + quench initialization workflow."""
+def module4_acceptance_passed(
+    validation: dict[str, float | bool],
+    required_r_E: float = 0.99,
+) -> bool:
+    """Return True when Module 4 is ready for later dynamics modules."""
 
+    required_checks = [
+        "H0_shape_ok",
+        "Hf_shape_ok",
+        "H0_hermitian",
+        "Hf_hermitian",
+    ]
+    checks_ok = all(bool(validation.get(key, False)) for key in required_checks)
+    norm_ok = abs(float(validation.get("state_norm", onp.inf)) - 1.0) < 1e-8
+    charge_ok = float(validation.get("commutator_norm_q0", onp.inf)) < 1e-9
+    charge_ok = charge_ok and float(validation.get("commutator_norm_q2", onp.inf)) < 1e-9
+    vqe_ok = float(validation.get("r_E", -onp.inf)) > required_r_E
+    quench_ok = float(validation.get("q2_energy_variance", 0.0)) > 1e-10
+    return checks_ok and norm_ok and charge_ok and vqe_ok and quench_ok
+
+
+def run_module4_from_config(config: Module4Config) -> Module4WorkflowResult:
+    """Run the complete Module 4 workflow from a stable config object."""
+
+    config.validate()
     H_initial = build_schwinger_hamiltonian(
-        N=N,
-        ag=ag,
-        m_over_g=m_over_g,
-        external_field=q_initial,
+        N=config.N,
+        ag=config.ag,
+        m_over_g=config.m_over_g,
+        external_field=config.q_initial,
+        g=config.g,
     )
     vqe_result = run_vqe(
         H_initial=H_initial,
-        layer_count=layer_count,
-        n_restarts=n_restarts,
-        seed=seed,
-        learning_rate=learning_rate,
-        max_steps=max_steps,
-        use_lbfgs_polish=use_lbfgs_polish,
+        layer_count=config.layer_count,
+        n_restarts=config.n_restarts,
+        seed=config.seed,
+        learning_rate=config.learning_rate,
+        max_steps=config.max_steps,
+        grad_tol=config.grad_tol,
+        stall_window=config.stall_window,
+        stall_tol=config.stall_tol,
+        use_lbfgs_polish=config.use_lbfgs_polish,
     )
     quench = prepare_quench_state(
         lambda_opt=vqe_result.theta_opt,
-        layer_count=layer_count,
-        N=N,
-        ag=ag,
-        m_over_g=m_over_g,
-        q_initial=q_initial,
-        q_final=q_final,
+        layer_count=config.layer_count,
+        N=config.N,
+        ag=config.ag,
+        m_over_g=config.m_over_g,
+        q_initial=config.q_initial,
+        q_final=config.q_final,
+        g=config.g,
     )
     validation = validate_module4_setup(vqe_result, quench)
-    return vqe_result, quench, validation
-
-
-def _print_validation(validation: dict[str, float | bool]) -> None:
-    for key, value in validation.items():
-        if isinstance(value, float):
-            print(f"{key}: {value:.12g}")
-        else:
-            print(f"{key}: {value}")
-
-
-def main() -> None:
-    parser = argparse.ArgumentParser(description="Run Module 4 VQE quench workflow.")
-    parser.add_argument("--quick", action="store_true", help="Run a short smoke test.")
-    parser.add_argument("--layer-count", type=int, default=5)
-    parser.add_argument("--restarts", type=int, default=20)
-    parser.add_argument("--max-steps", type=int, default=3000)
-    parser.add_argument("--seed", type=int, default=1234)
-    parser.add_argument("--lbfgs-polish", action="store_true")
-    args = parser.parse_args()
-
-    restarts = args.restarts
-    max_steps = args.max_steps
-    if args.quick:
-        restarts = min(restarts, 2)
-        max_steps = min(max_steps, 5)
-
-    vqe_result, quench, validation = run_module4_workflow(
-        layer_count=args.layer_count,
-        n_restarts=restarts,
-        max_steps=max_steps,
-        seed=args.seed,
-        use_lbfgs_polish=args.lbfgs_polish and not args.quick,
+    return Module4WorkflowResult(
+        config=config,
+        vqe=vqe_result,
+        quench=quench,
+        validation=validation,
     )
 
-    print("Module 4 VQE + quench setup")
-    print(f"best_energy: {vqe_result.best_energy:.12g}")
-    print(f"exact_ground_energy: {vqe_result.exact_ground_energy:.12g}")
-    print(f"r(E): {vqe_result.r_E:.12g}")
-    print(f"post_quench_energy_q2: {quench.initial_energy_q2:.12g}")
-    print(f"post_quench_variance_q2: {quench.initial_variance_q2:.12g}")
-    print("initial_observables_q2:", quench.initial_observables_q2)
-    print("\nValidation")
-    _print_validation(validation)
 
-    if args.quick:
-        print("\nQuick mode is only a smoke test; it is not expected to reach r(E) > 0.99.")
+def run_module4_workflow(
+    N: int,
+    ag: float,
+    m_over_g: float,
+    q_initial: float,
+    q_final: float,
+    g: float,
+    layer_count: int,
+    n_restarts: int,
+    seed: int,
+    learning_rate: float,
+    max_steps: int,
+    grad_tol: float,
+    stall_window: int,
+    stall_tol: float,
+    use_lbfgs_polish: bool,
+) -> tuple[VQEResult, QuenchSetup, dict[str, float | bool]]:
+    """Tuple workflow interface for notebook cells that do not need config objects."""
 
-
-if __name__ == "__main__":
-    main()
+    result = run_module4_from_config(
+        Module4Config(
+            N=N,
+            ag=ag,
+            m_over_g=m_over_g,
+            q_initial=q_initial,
+            q_final=q_final,
+            g=g,
+            layer_count=layer_count,
+            n_restarts=n_restarts,
+            seed=seed,
+            learning_rate=learning_rate,
+            max_steps=max_steps,
+            grad_tol=grad_tol,
+            stall_window=stall_window,
+            stall_tol=stall_tol,
+            use_lbfgs_polish=use_lbfgs_polish,
+        )
+    )
+    return result.vqe, result.quench, result.validation
