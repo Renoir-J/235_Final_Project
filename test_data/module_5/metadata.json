@@ -1,0 +1,67 @@
+{
+  "schema_version": 1,
+  "module": "module_5",
+  "description": "Second-order Suzuki-Trotter baseline for the q=2 post-quench dynamics.",
+  "source_paper": "Nagano, Bapat, Bauer, arXiv:2302.10933",
+  "config": {
+    "N": 4,
+    "ag": 1.0,
+    "m_over_g": 1.0,
+    "q_final": 2.0,
+    "g": 1.0,
+    "total_time": 5.0,
+    "n_steps": 100,
+    "n_steps_scan": [
+      10,
+      20,
+      40,
+      80,
+      160
+    ]
+  },
+  "validation": {
+    "split_sum_error": 0.0,
+    "final_fidelity": 0.999999811801046,
+    "min_fidelity": 0.9999993056968198,
+    "fidelity_monotonic": true,
+    "trotter_order_estimate": 2.0336311610685325
+  },
+  "convergence": {
+    "n_steps_values": [
+      10,
+      20,
+      40,
+      80,
+      160
+    ],
+    "final_fidelity": [
+      0.9972520667626316,
+      0.9998721121914673,
+      0.9999925157579682,
+      0.9999995396531464,
+      0.9999999713422763
+    ],
+    "final_state_error": [
+      0.17827594806304928,
+      0.04114647358518384,
+      0.010093258414142664,
+      0.002511524164068024,
+      0.0006271486422772826
+    ],
+    "order_estimate": 2.0336311610685325
+  },
+  "arrays_file": "arrays.npz",
+  "array_keys": [
+    "times",
+    "trotter_electric_field",
+    "trotter_chiral_condensate",
+    "trotter_charge",
+    "exact_electric_field",
+    "exact_chiral_condensate",
+    "exact_charge",
+    "fidelity",
+    "conv_n_steps",
+    "conv_final_fidelity",
+    "conv_final_state_error"
+  ]
+}
