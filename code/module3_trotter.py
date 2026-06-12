@@ -1,9 +1,9 @@
-"""Module 5: second-order Suzuki-Trotter baseline for the post-quench dynamics.
+"""Module 3: second-order Suzuki-Trotter baseline for the post-quench dynamics.
 
-Reproduces target 2 of the project proposal: evolve the Module 4 quench-ready
+Reproduces target 2 of the project proposal: evolve the Module 2 quench-ready
 state |psi_0> under the post-quench Schwinger Hamiltonian H(q=2) with a
 second-order Suzuki-Trotter (Strang) product formula, and compare observables
-and fidelity against the exact scipy.linalg.expm reference from Module 4.
+and fidelity against the exact scipy.linalg.expm reference from schwinger_core.
 
 The Hamiltonian is split into two non-commuting groups H = H_diag + H_hop, where
 H_diag collects the Pauli terms diagonal in the computational basis (words over
@@ -22,32 +22,31 @@ import numpy as onp
 from numpy.typing import NDArray
 import scipy.linalg
 
-from module_4_vqe_quench import (
+from schwinger_core import (
+    ObservableTrajectory,
     PauliTerm,
     SchwingerHamiltonian,
     build_schwinger_hamiltonian,
-    compute_observables,
     exact_time_evolution,
+    fidelity_series,
     hamiltonian_matrix,
+    observable_trajectory,
     state_fidelity,
 )
 
 __all__ = [
-    "Module5Config",
-    "Module5WorkflowResult",
-    "ObservableTrajectory",
+    "Module3Config",
+    "Module3WorkflowResult",
     "TrotterConvergence",
     "split_hamiltonian_terms",
     "group_matrix",
     "second_order_trotter_step",
     "trotter_evolve",
-    "observable_trajectory",
-    "fidelity_series",
     "run_trotter_convergence",
-    "validate_module5_setup",
-    "module5_acceptance_passed",
-    "run_module5_from_config",
-    "run_module5_workflow",
+    "validate_module3_setup",
+    "module3_acceptance_passed",
+    "run_module3_from_config",
+    "run_module3_workflow",
 ]
 
 
@@ -67,7 +66,7 @@ def split_hamiltonian_terms(
 
 
 def group_matrix(hamiltonian: SchwingerHamiltonian, terms: list[PauliTerm]) -> NDArray:
-    """Dense matrix for a subset of terms, reusing Module 4's hamiltonian_matrix."""
+    """Dense matrix for a subset of terms, reusing schwinger_core.hamiltonian_matrix."""
 
     return hamiltonian_matrix(replace(hamiltonian, terms=terms))
 
@@ -97,52 +96,6 @@ def trotter_evolve(
         states[k + 1] = step @ states[k]
     times = onp.linspace(0.0, total_time, n_steps + 1)
     return times, states
-
-
-@dataclass
-class ObservableTrajectory:
-    times: NDArray
-    states: NDArray
-    electric_field: NDArray
-    chiral_condensate: NDArray
-    charge: NDArray
-
-
-def observable_trajectory(
-    times: NDArray,
-    states: NDArray,
-    N: int,
-    ag: float,
-    q_final: float,
-    g: float,
-) -> ObservableTrajectory:
-    """Compute Module 4 observables along a trajectory of statevectors."""
-
-    count = states.shape[0]
-    electric_field = onp.empty(count)
-    chiral_condensate = onp.empty(count)
-    charge = onp.empty(count)
-    for idx in range(count):
-        obs = compute_observables(states[idx], N=N, ag=ag, external_field=q_final, g=g)
-        electric_field[idx] = obs["electric_field"]
-        chiral_condensate[idx] = obs["chiral_condensate"]
-        charge[idx] = obs["charge"]
-    return ObservableTrajectory(
-        times=onp.asarray(times, dtype=float),
-        states=onp.asarray(states, dtype=complex),
-        electric_field=electric_field,
-        chiral_condensate=chiral_condensate,
-        charge=charge,
-    )
-
-
-def fidelity_series(states_ref: NDArray, states: NDArray) -> NDArray:
-    """Per-time fidelity |<ref|state>|^2 between two trajectories."""
-
-    return onp.asarray(
-        [state_fidelity(states_ref[idx], states[idx]) for idx in range(states.shape[0])],
-        dtype=float,
-    )
 
 
 @dataclass
@@ -187,8 +140,8 @@ def run_trotter_convergence(
 
 
 @dataclass(frozen=True)
-class Module5Config:
-    """Stable public configuration for the Module 5 Trotter baseline.
+class Module3Config:
+    """Stable public configuration for the Module 3 Trotter baseline.
 
     Concrete parameter choices belong in main_skeleton.ipynb, not here.
     """
@@ -219,8 +172,8 @@ class Module5Config:
 
 
 @dataclass
-class Module5WorkflowResult:
-    config: Module5Config
+class Module3WorkflowResult:
+    config: Module3Config
     trotter: ObservableTrajectory
     exact: ObservableTrajectory
     fidelity: NDArray
@@ -229,12 +182,12 @@ class Module5WorkflowResult:
     validation: dict
 
 
-def validate_module5_setup(
+def validate_module3_setup(
     split_sum_error: float,
     fidelity: NDArray,
     convergence: TrotterConvergence,
 ) -> dict:
-    """Collect the physics-meaningful Module 5 checks."""
+    """Collect the physics-meaningful Module 3 checks."""
 
     final_values = convergence.final_fidelity
     monotonic = bool(onp.all(onp.diff(final_values) >= -1e-12))
@@ -247,7 +200,7 @@ def validate_module5_setup(
     }
 
 
-def module5_acceptance_passed(validation: dict, required_fidelity: float = 0.99) -> bool:
+def module3_acceptance_passed(validation: dict, required_fidelity: float = 0.99) -> bool:
     """Return True when the Trotter baseline is ready for downstream comparison."""
 
     split_ok = float(validation.get("split_sum_error", onp.inf)) < 1e-9
@@ -257,8 +210,8 @@ def module5_acceptance_passed(validation: dict, required_fidelity: float = 0.99)
     return split_ok and fidelity_ok and monotonic_ok and order_ok
 
 
-def run_module5_from_config(config: Module5Config, psi_0: NDArray) -> Module5WorkflowResult:
-    """Run the full Module 5 Trotter baseline from a stable config and initial state."""
+def run_module3_from_config(config: Module3Config, psi_0: NDArray) -> Module3WorkflowResult:
+    """Run the full Module 3 Trotter baseline from a stable config and initial state."""
 
     config.validate()
     hamiltonian = build_schwinger_hamiltonian(
@@ -284,9 +237,9 @@ def run_module5_from_config(config: Module5Config, psi_0: NDArray) -> Module5Wor
     convergence = run_trotter_convergence(
         psi_0, H_diag, H_hop, H_final_matrix, config.total_time, config.n_steps_scan
     )
-    validation = validate_module5_setup(split_sum_error, fidelity, convergence)
+    validation = validate_module3_setup(split_sum_error, fidelity, convergence)
 
-    return Module5WorkflowResult(
+    return Module3WorkflowResult(
         config=config,
         trotter=trotter,
         exact=exact,
@@ -297,7 +250,7 @@ def run_module5_from_config(config: Module5Config, psi_0: NDArray) -> Module5Wor
     )
 
 
-def run_module5_workflow(
+def run_module3_workflow(
     N: int,
     ag: float,
     m_over_g: float,
@@ -310,8 +263,8 @@ def run_module5_workflow(
 ) -> tuple[ObservableTrajectory, ObservableTrajectory, NDArray, TrotterConvergence, dict]:
     """Tuple workflow interface for notebook cells that do not need config objects."""
 
-    result = run_module5_from_config(
-        Module5Config(
+    result = run_module3_from_config(
+        Module3Config(
             N=N,
             ag=ag,
             m_over_g=m_over_g,

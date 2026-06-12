@@ -1,11 +1,11 @@
-"""Module 6: McLachlan variational quantum simulation (VQS) of the post-quench dynamics.
+"""Module 4: McLachlan variational quantum simulation (VQS) of the post-quench dynamics.
 
-Reproduces targets 3 and 4 of the project proposal: evolve the Module 4 HVA
+Reproduces targets 3 and 4 of the project proposal: evolve the Module 1 HVA
 parameters theta(t) (starting from the VQE optimum theta_opt) under the
 post-quench Schwinger Hamiltonian H(q=2) by solving the projected McLachlan
 equation of motion M(theta) theta_dot = V(theta) with a regularized Euler step,
 then compare observables and fidelity against the exact scipy.linalg.expm
-reference (and, in the notebook, the Module 5 Trotter baseline).
+reference (and, in the notebook, the Module 3 Trotter baseline).
 
 The variational manifold is the same paper HVA used for VQE, so the evolution
 stays at constant circuit depth. All linear algebra runs classically on dense
@@ -25,22 +25,21 @@ from typing import Iterable
 import numpy as onp
 from numpy.typing import NDArray
 
-from module_4_vqe_quench import (
+from schwinger_core import (
+    ObservableTrajectory,
     build_schwinger_hamiltonian,
     exact_time_evolution,
+    fidelity_series,
     hamiltonian_matrix,
+    observable_trajectory,
+    pauli_word_matrix,
     state_fidelity,
     total_charge_matrix,
 )
-from module_5_trotter import (
-    ObservableTrajectory,
-    fidelity_series,
-    observable_trajectory,
-)
 
 __all__ = [
-    "Module6Config",
-    "Module6WorkflowResult",
+    "Module4Config",
+    "Module4WorkflowResult",
     "VQSTrajectory",
     "VQSConvergence",
     "hva_tangent_vectors",
@@ -51,37 +50,18 @@ __all__ = [
     "run_vqs_evolution",
     "run_vqs_convergence",
     "charge_drift",
-    "validate_module6_setup",
-    "module6_acceptance_passed",
-    "run_module6_from_config",
-    "run_module6_workflow",
+    "validate_module4_setup",
+    "module4_acceptance_passed",
+    "run_module4_from_config",
+    "run_module4_workflow",
 ]
-
-
-# These Pauli/link helpers intentionally duplicate small pieces of module_4 (its
-# PAULI_MATS, pauli_word_matrix, _even_then_odd_links) so this module depends only
-# on module_4's public, documented interface and never on its private symbols. The
-# duplication is ~25 trivial, tested lines; the decoupling is worth it.
-_PAULI = {
-    "I": onp.eye(2, dtype=complex),
-    "X": onp.array([[0.0, 1.0], [1.0, 0.0]], dtype=complex),
-    "Y": onp.array([[0.0, -1.0j], [1.0j, 0.0]], dtype=complex),
-    "Z": onp.array([[1.0, 0.0], [0.0, -1.0]], dtype=complex),
-}
-
-
-def _pauli_word_matrix(letters: tuple[str, ...]) -> NDArray:
-    matrix = _PAULI[letters[0]]
-    for letter in letters[1:]:
-        matrix = onp.kron(matrix, _PAULI[letter])
-    return matrix
 
 
 def _word(N: int, entries: list[tuple[int, str]]) -> NDArray:
     letters = ["I"] * N
     for wire, pauli in entries:
         letters[wire] = pauli
-    return _pauli_word_matrix(tuple(letters))
+    return pauli_word_matrix(tuple(letters))
 
 
 def _even_then_odd_links(N: int) -> list[int]:
@@ -91,7 +71,7 @@ def _even_then_odd_links(N: int) -> list[int]:
 def _hva_gate_specs(N: int, layer_count: int) -> list[tuple[NDArray, int, float]]:
     """Ordered (generator P, flat-parameter index, dphi/dtheta) for every HVA gate.
 
-    Mirrors module_4_vqe_quench.apply_hva_ansatz exactly. phi for each gate equals
+    Mirrors module1_vqe.apply_hva_ansatz exactly. phi for each gate equals
     (dphi/dtheta) * theta[index], so the gate is reconstructed from theta alone. The
     list is in circuit-application order (spec 0 acts first on |init>), which the
     forward/suffix products in hva_tangent_vectors rely on. Note the XX and YY gates
@@ -126,7 +106,7 @@ def _init_state(N: int) -> NDArray:
 def hva_tangent_vectors(theta: NDArray, layer_count: int, N: int) -> tuple[NDArray, NDArray]:
     """Return (|psi(theta)>, tangents) where tangents[i] = d|psi>/d theta_i.
 
-    Closed-form, exact, and consistent with module_4's apply_hva_ansatz. Each gate
+    Closed-form, exact, and consistent with module1_vqe.apply_hva_ansatz. Each gate
     G = cos(phi/2) I - i sin(phi/2) P has derivative dG/dphi = (-i P / 2) G.
     """
 
@@ -338,8 +318,8 @@ def run_vqs_convergence(
 
 
 @dataclass(frozen=True)
-class Module6Config:
-    """Stable public configuration for the Module 6 McLachlan VQS baseline.
+class Module4Config:
+    """Stable public configuration for the Module 4 McLachlan VQS baseline.
 
     Concrete parameter choices belong in main_skeleton.ipynb, not here.
     """
@@ -377,8 +357,8 @@ class Module6Config:
 
 
 @dataclass
-class Module6WorkflowResult:
-    config: Module6Config
+class Module4WorkflowResult:
+    config: Module4Config
     trajectory: VQSTrajectory
     vqs: ObservableTrajectory
     exact: ObservableTrajectory
@@ -387,13 +367,13 @@ class Module6WorkflowResult:
     validation: dict
 
 
-def validate_module6_setup(
+def validate_module4_setup(
     fidelity: NDArray,
     convergence: VQSConvergence,
     charge_drift_value: float,
     residual: NDArray,
 ) -> dict:
-    """Collect the physics-meaningful Module 6 checks."""
+    """Collect the physics-meaningful Module 4 checks."""
 
     return {
         "final_fidelity": float(fidelity[-1]),
@@ -404,7 +384,7 @@ def validate_module6_setup(
     }
 
 
-def module6_acceptance_passed(validation: dict, required_fidelity: float = 0.99) -> bool:
+def module4_acceptance_passed(validation: dict, required_fidelity: float = 0.99) -> bool:
     """Return True when the VQS evolution is a faithful reproduction baseline."""
 
     fidelity_ok = float(validation.get("final_fidelity", -onp.inf)) > required_fidelity
@@ -413,8 +393,8 @@ def module6_acceptance_passed(validation: dict, required_fidelity: float = 0.99)
     return fidelity_ok and charge_ok and order_ok
 
 
-def run_module6_from_config(config: Module6Config, theta_0: NDArray) -> Module6WorkflowResult:
-    """Run the full Module 6 McLachlan VQS baseline from a stable config and initial params."""
+def run_module4_from_config(config: Module4Config, theta_0: NDArray) -> Module4WorkflowResult:
+    """Run the full Module 4 McLachlan VQS baseline from a stable config and initial params."""
 
     config.validate()
     hamiltonian = build_schwinger_hamiltonian(
@@ -447,9 +427,9 @@ def run_module6_from_config(config: Module6Config, theta_0: NDArray) -> Module6W
         config.total_time, config.n_steps_scan, config.regularization, config.use_projector,
     )
     drift = charge_drift(trajectory.states, config.N)
-    validation = validate_module6_setup(fidelity, convergence, drift, trajectory.residual)
+    validation = validate_module4_setup(fidelity, convergence, drift, trajectory.residual)
 
-    return Module6WorkflowResult(
+    return Module4WorkflowResult(
         config=config,
         trajectory=trajectory,
         vqs=vqs,
@@ -460,7 +440,7 @@ def run_module6_from_config(config: Module6Config, theta_0: NDArray) -> Module6W
     )
 
 
-def run_module6_workflow(
+def run_module4_workflow(
     N: int,
     ag: float,
     m_over_g: float,
@@ -476,8 +456,8 @@ def run_module6_workflow(
 ) -> tuple[VQSTrajectory, ObservableTrajectory, ObservableTrajectory, NDArray, VQSConvergence, dict]:
     """Tuple workflow interface for notebook cells that do not need config objects."""
 
-    result = run_module6_from_config(
-        Module6Config(
+    result = run_module4_from_config(
+        Module4Config(
             N=N,
             ag=ag,
             m_over_g=m_over_g,

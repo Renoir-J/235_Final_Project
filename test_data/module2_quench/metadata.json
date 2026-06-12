@@ -1,0 +1,39 @@
+{
+  "schema_version": 2,
+  "module": "module2_quench",
+  "description": "q=0 to q=2 quench-ready fixture for smoke tests.",
+  "source_paper": "Nagano, Bapat, Bauer, arXiv:2302.10933",
+  "config": {
+    "N": 4,
+    "ag": 1.0,
+    "m_over_g": 1.0,
+    "q_initial": 0.0,
+    "q_final": 2.0,
+    "g": 1.0,
+    "layer_count": 5
+  },
+  "validation": {
+    "initial_energy_q0": -2.276558904524778,
+    "initial_energy_q2": 3.795552244947266,
+    "q2_energy_variance": 0.3839609228619558,
+    "commutator_norm_q0": 0.0,
+    "commutator_norm_q2": 0.0
+  },
+  "quench": {
+    "initial_energy_q0": -2.276558904524778,
+    "initial_energy_q2": 3.795552244947266,
+    "initial_variance_q2": 0.3839609228619558,
+    "initial_observables_q2": {
+      "electric_field": 2.009013893684005,
+      "chiral_condensate": -0.9052170842024483,
+      "charge": 0.0
+    }
+  },
+  "arrays_file": "arrays.npz",
+  "array_keys": [
+    "theta_opt",
+    "psi_0",
+    "H_initial_matrix",
+    "H_final_matrix"
+  ]
+}

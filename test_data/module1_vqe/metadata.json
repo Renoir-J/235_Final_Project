@@ -1,14 +1,13 @@
 {
-  "schema_version": 1,
-  "module": "module_4",
-  "description": "VQE q=0 ground-state and q=2 quench-ready fixture for smoke tests.",
+  "schema_version": 2,
+  "module": "module1_vqe",
+  "description": "VQE q=0 ground-state fixture for smoke tests.",
   "source_paper": "Nagano, Bapat, Bauer, arXiv:2302.10933",
   "config": {
     "N": 4,
     "ag": 1.0,
     "m_over_g": 1.0,
     "q_initial": 0.0,
-    "q_final": 2.0,
     "g": 1.0,
     "layer_count": 5,
     "n_restarts": 10,
@@ -25,9 +24,7 @@
     "vqe_energy": -2.276558904524777,
     "exact_ground_energy": -2.2765645864303865,
     "ground_state_fidelity": 0.9999984681788505,
-    "q2_energy_variance": 0.3839609228619558,
-    "commutator_norm_q0": 0.0,
-    "commutator_norm_q2": 0.0
+    "commutator_norm_q0": 0.0
   },
   "vqe": {
     "best_energy": -2.276558904524777,
@@ -37,23 +34,11 @@
     "r_E": 0.9999991050789333,
     "polished": false
   },
-  "quench": {
-    "initial_energy_q0": -2.276558904524778,
-    "initial_energy_q2": 3.795552244947266,
-    "initial_variance_q2": 0.3839609228619558,
-    "initial_observables_q2": {
-      "electric_field": 2.009013893684005,
-      "chiral_condensate": -0.9052170842024483,
-      "charge": 0.0
-    }
-  },
   "arrays_file": "arrays.npz",
   "array_keys": [
     "theta_opt",
-    "psi_0",
     "statevector",
     "exact_ground_state",
-    "H_initial_matrix",
-    "H_final_matrix"
+    "H_initial_matrix"
   ]
 }
