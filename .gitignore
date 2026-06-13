@@ -1,6 +1,8 @@
 *.pdf
 .claude
 *.md
+!README.md
 __pycache__/
 *.npz
 report_plan/
+*.log
