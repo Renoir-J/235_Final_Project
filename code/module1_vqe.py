@@ -29,6 +29,8 @@ from schwinger_core import (
 __all__ = [
     "Module1Config",
     "Module1WorkflowResult",
+    "VQEEnsembleResult",
+    "VQERestartSample",
     "VQEResult",
     "apply_hva_ansatz",
     "hva_state",
@@ -38,6 +40,7 @@ __all__ = [
     "run_module1_from_config",
     "run_module1_workflow",
     "run_vqe",
+    "run_vqe_restart_ensemble",
     "validate_module1_setup",
 ]
 
@@ -54,6 +57,24 @@ class VQEResult:
     exact_ground_state: NDArray
     restart_history: list[dict]
     polished: bool
+
+
+@dataclass
+class VQERestartSample:
+    restart_index: int
+    theta_opt: NDArray
+    energy: float
+    r_E: float
+    steps: int
+    reason: str
+
+
+@dataclass
+class VQEEnsembleResult:
+    layer_count: int
+    samples: list[VQERestartSample]
+    exact_ground_energy: float
+    exact_max_energy: float
 
 
 @dataclass(frozen=True)
@@ -391,6 +412,68 @@ def run_vqe(
         exact_ground_state=spectrum.ground_state,
         restart_history=restart_history,
         polished=polished,
+    )
+
+
+def run_vqe_restart_ensemble(
+    H_initial: SchwingerHamiltonian,
+    layer_count: int,
+    n_samples: int = 20,
+    seed: int = 1234,
+    learning_rate: float = 0.05,
+    max_steps: int = 200,
+    grad_tol: float = 1e-4,
+    stall_window: int = 100,
+    stall_tol: float = 1e-9,
+) -> VQEEnsembleResult:
+    """Run deterministic VQE restarts and retain every optimized sample.
+
+    The sample order is exactly the one from make_vqe_initial_guesses: restart 0
+    is the zero vector, followed by seeded local and global random guesses. The
+    n_samples parameter is kept for tests and ablations; production paper plots
+    pass n_samples=20 to use the full restart set.
+    """
+
+    if n_samples < 1 or n_samples > 20:
+        raise ValueError("n_samples must be between 1 and 20.")
+    if layer_count < 1:
+        raise ValueError("layer_count must be at least 1.")
+
+    H_matrix = hamiltonian_matrix(H_initial)
+    spectrum = exact_ground_state(H_matrix)
+    energy_fn = make_energy_qnode(H_initial, layer_count=layer_count)
+    guesses = make_vqe_initial_guesses(layer_count=layer_count, N=H_initial.N, seed=seed)
+    denom = spectrum.max_energy - spectrum.ground_energy
+
+    samples: list[VQERestartSample] = []
+    for restart_idx, theta0 in enumerate(guesses[:n_samples]):
+        result = _adam_minimize(
+            objective=energy_fn,
+            theta0=theta0,
+            learning_rate=learning_rate,
+            max_steps=max_steps,
+            grad_tol=grad_tol,
+            stall_window=stall_window,
+            stall_tol=stall_tol,
+        )
+        energy = float(result["energy"])
+        r_E = (spectrum.max_energy - energy) / denom
+        samples.append(
+            VQERestartSample(
+                restart_index=restart_idx,
+                theta_opt=onp.asarray(result["theta"], dtype=float).copy(),
+                energy=energy,
+                r_E=float(r_E),
+                steps=int(result["steps"]),
+                reason=str(result["reason"]),
+            )
+        )
+
+    return VQEEnsembleResult(
+        layer_count=layer_count,
+        samples=samples,
+        exact_ground_energy=spectrum.ground_energy,
+        exact_max_energy=spectrum.max_energy,
     )
 
 

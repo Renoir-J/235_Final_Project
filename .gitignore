@@ -1,8 +1,6 @@
 *.pdf
-develop_plan
 .claude
 *.md
 __pycache__/
 *.npz
-code/test*.py
 report_plan/
